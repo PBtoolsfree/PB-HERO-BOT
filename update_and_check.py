@@ -38,6 +38,9 @@ def print_banner():
   Time: {BOLD}May 2026{NC} | Directory: {CYAN}{BASE_DIR}{NC}
   Function: {MAGENTA}Auto-Update (Git) + Comprehensive Health & Service Checks{NC}
 {CYAN}========================================================================={NC}
+  {BOLD}{GREEN}🔒 CONFIG & SESSION SAFE:{NC} Your settings ({BOLD}.env{NC}) & active auth sessions
+  ({BOLD}*.session{NC}) are protected by gitignore & will {BOLD}{GREEN}NEVER{NC} be overwritten!
+{CYAN}========================================================================={NC}
 """
     print(banner)
 

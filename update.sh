@@ -16,6 +16,7 @@ echo -e "${CYAN}================================================================
 echo -e "${GREEN}        🚀 PB HERO BOT - TERMINAL UPDATE & DIAGNOSTIC LAUNCHER 🚀         ${NC}"
 echo -e "${CYAN}=========================================================================${NC}"
 echo -e "Starting manual updates and server status audit..."
+echo -e "${GREEN}🔒 [SAFE] Your configurations (.env) and active sessions are 100% safe!${NC}"
 echo
 
 # 1. Locate python executable
