@@ -100,9 +100,12 @@ start.bat
 
 ---
 
-## ⚡ Automated Maintenance & System Diagnostics
+## ⚡ Manual Terminal Maintenance & Diagnostics
 
-PB Hero Bot features a premium, comprehensive CLI maintenance utility (`update_and_check.py`) to automatically synchronize the bot's codebase, update system dependencies, analyze logs, audit environment settings, monitor resources, and gracefully reload the daemon service.
+PB Hero Bot features a premium, comprehensive CLI maintenance utility (`update_and_check.py`) to manually synchronize the bot's codebase, update system dependencies, analyze logs, audit environment settings, monitor resources, and gracefully reload the daemon service. 
+
+> [!NOTE]  
+> **This is a manual update tool.** The bot will **never** automatically download updates or restart itself in the background without your explicit command. You retain full control to trigger updates manually via your terminal or Command Prompt.
 
 ### 🛡️ System Diagnostic Pipeline
 1. **GitHub Synchronization:** Auto-fetches and pulls the latest updates from the remote repository's `main` branch.
@@ -112,11 +115,21 @@ PB Hero Bot features a premium, comprehensive CLI maintenance utility (`update_a
 5. **Logs & Port Diagnostic:** Scans `deal_forwarder.log` for any runtime errors or connection failures, and verifies if the FastAPI Server is listening on Port 8000.
 6. **System Daemon Hot-Reload:** In Linux production environments, it automatically reloads systemd manager configurations and runs `sudo systemctl restart pbherobot.service` to apply changes instantly while verifying the service becomes fully `active`.
 
-### 🚀 Running the Diagnostic Update Tool
+### 🚀 How to Manually Update & Diagnose via Command Prompt
 
-Connect to your server terminal via SSH and run:
+Depending on your operating system, execute the manual launcher command in your terminal/Command Prompt:
+
+#### Linux VPS Server (SSH Terminal)
+Navigate to `/opt/telegram-affiliate-forwarder` and run:
 ```bash
-python3 update_and_check.py
+chmod +x update.sh
+./update.sh
+```
+
+#### Windows Development PC (Command Prompt)
+Navigate to your project directory and run:
+```cmd
+update.bat
 ```
 
 ---
@@ -150,6 +163,8 @@ PB-HERO-BOT/
 ├── deal_forwarder.py       # Core affiliate forwarding & link converter service
 ├── web_dashboard.py        # FastAPI control server and headless programmatic auth backend
 ├── update_and_check.py     # Premium auto-updater and system diagnostics health check tool
+├── update.bat              # One-click Windows Command Prompt manual update launcher
+├── update.sh               # One-click Linux Terminal manual update launcher
 ├── install.sh              # One-click Ubuntu cloud deployment script
 ├── start.bat               # Windows environment setup and startup wizard script
 ├── requirements.txt        # System requirements
