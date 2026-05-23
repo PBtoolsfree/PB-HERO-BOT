@@ -149,7 +149,8 @@ def save_env_configs(configs: Dict[str, str]):
             f.write(f"MY_TELEGRAM_CHANNEL={configs.get('MY_TELEGRAM_CHANNEL', '').strip()}\n\n")
             
             f.write("# [DEAL SOURCES - TARGET CHANNELS (Comma separated)]\n")
-            f.write(f"TARGET_CHANNELS={configs.get('TARGET_CHANNELS', '').strip()}\n\n")
+            f.write(f"TARGET_CHANNELS={configs.get('TARGET_CHANNELS', '').strip()}\n")
+            f.write(f"WHITELIST_CHANNELS={configs.get('WHITELIST_CHANNELS', '').strip()}\n\n")
             
             f.write("# [DISCORD INTEGRATION]\n")
             f.write(f"DISCORD_MODE={configs.get('DISCORD_MODE', 'webhook').strip()}\n")
@@ -240,6 +241,7 @@ async def get_current_configuration(request: Request):
         "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN", ""),
         "MY_TELEGRAM_CHANNEL": os.getenv("MY_TELEGRAM_CHANNEL", ""),
         "TARGET_CHANNELS": os.getenv("TARGET_CHANNELS", ""),
+        "WHITELIST_CHANNELS": os.getenv("WHITELIST_CHANNELS", ""),
         "DISCORD_MODE": os.getenv("DISCORD_MODE", "webhook"),
         "DISCORD_WEBHOOK_URL": os.getenv("DISCORD_WEBHOOK_URL", ""),
         "DISCORD_BOT_TOKEN": os.getenv("DISCORD_BOT_TOKEN", ""),

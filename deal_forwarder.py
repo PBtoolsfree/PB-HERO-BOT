@@ -214,6 +214,7 @@ class DealForwarderService:
                 "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN"),
                 "MY_TELEGRAM_CHANNEL": os.getenv("MY_TELEGRAM_CHANNEL"),
                 "TARGET_CHANNELS": os.getenv("TARGET_CHANNELS"),
+                "WHITELIST_CHANNELS": os.getenv("WHITELIST_CHANNELS"),
                 "DISCORD_MODE": os.getenv("DISCORD_MODE", "webhook"),
                 "DISCORD_WEBHOOK_URL": os.getenv("DISCORD_WEBHOOK_URL"),
                 "DISCORD_BOT_TOKEN": os.getenv("DISCORD_BOT_TOKEN"),
@@ -235,12 +236,14 @@ class DealForwarderService:
             "partner_id": config_dict.get("EARNKARO_PARTNER_ID", "YOUR_ID"),
             "affiliate_platform": config_dict.get("AFFILIATE_PLATFORM", "earnkaro"),
             "cuelinks_api_key": config_dict.get("CUELINKS_API_KEY", ""),
-            "amazon_tag": config_dict.get("AMAZON_ASSOCIATE_TAG", "")
+            "amazon_tag": config_dict.get("AMAZON_ASSOCIATE_TAG", ""),
+            "whitelist_channels_raw": config_dict.get("WHITELIST_CHANNELS", "")
         }
 
         # Parse Channels
         self.config["my_channel"] = self._parse_channel_id(config_dict.get("MY_TELEGRAM_CHANNEL", ""))
         self.config["target_channels"] = self._parse_target_channels(config_dict.get("TARGET_CHANNELS", ""))
+        self.config["whitelist_channels"] = self._parse_target_channels(config_dict.get("WHITELIST_CHANNELS", ""))
         
         # Parse Discord Target Channels
         self.config["discord_channels"] = [
@@ -611,10 +614,28 @@ class DealForwarderService:
         # Apply the smart product link filter
         product_urls = [url for url in raw_urls if is_product_url(url)]
         
+        # Check if the source is whitelisted (Skip link conversion)
+        is_whitelisted = False
+        whitelist_list = self.config.get("whitelist_channels", [])
+        
+        # 1. Match numeric ID
+        if event.chat_id in whitelist_list:
+            is_whitelisted = True
+            
+        # 2. Match username
+        if not is_whitelisted and hasattr(event, 'chat') and getattr(event.chat, 'username', None):
+            username_cleaned = event.chat.username.lower().strip()
+            for wl in whitelist_list:
+                if isinstance(wl, str) and wl.lower().strip().lstrip('@') == username_cleaned:
+                    is_whitelisted = True
+                    break
+
         affiliate_url = None
         cleaned_text = text or ""
         
-        if product_urls:
+        if is_whitelisted:
+            logger.info(f"Incoming post is from WHITELISTED channel: {event.chat_id}. Forwarding directly without link conversion.")
+        elif product_urls:
             logger.info(f"Incoming deal detected. Extracted product URL count: {len(product_urls)} (out of {len(raw_urls)} total URLs)")
             original_url = product_urls[0]
             affiliate_url = self.convert_to_affiliate(original_url)
@@ -661,7 +682,7 @@ class DealForwarderService:
 
         api_id = self.config.get("api_id")
         api_hash = self.config.get("api_hash")
-        target_chats = self.config.get("target_channels", [])
+        target_chats = list(set(self.config.get("target_channels", []) + self.config.get("whitelist_channels", [])))
 
         if not api_id or not api_hash:
             raise ValueError("Telegram API_ID and API_HASH are required to start Telethon.")
@@ -741,7 +762,7 @@ async def run_standalone():
     await service.client.start()
     
     # Register events
-    target_chats = service.config.get("target_channels", [])
+    target_chats = list(set(service.config.get("target_channels", []) + service.config.get("whitelist_channels", [])))
     if target_chats:
         @service.client.on(events.NewMessage(chats=target_chats))
         async def handler(event):

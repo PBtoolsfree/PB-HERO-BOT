@@ -612,15 +612,18 @@
                     </div>
                 </div>
 
-                <!-- Tab: Source Listener Channels -->
                 <div id="tab-targets" class="tab-pane">
                     <div class="form-group">
                         <label for="TARGET_CHANNELS">Source Channels (Comma-separated)</label>
                         <textarea id="TARGET_CHANNELS" rows="4" placeholder="e.g. -1009999999999, @deal_source_channel_1, -1008888888888"></textarea>
                         <div class="form-note">List of Telegram channels to listen to for live deals. Put one or more comma-separated IDs or usernames.</div>
                     </div>
+                    <div class="form-group" style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                        <label for="WHITELIST_CHANNELS">Whitelisted Channels (Skip Link Conversion)</label>
+                        <textarea id="WHITELIST_CHANNELS" rows="4" placeholder="e.g. -1001234567890, @my_preconverted_channel"></textarea>
+                        <div class="form-note">List of Telegram channels where messages already contain your affiliate links. The bot will forward posts from these channels directly <b>without link conversion</b> to your main Telegram and Discord channels.</div>
+                    </div>
                 </div>
-
                 <!-- Tab: Discord Webhook & Bot Integration -->
                 <div id="tab-discord" class="tab-pane">
                     <div class="form-group">
@@ -917,7 +920,7 @@
         async function saveConfig() {
             const keys = [
                 'TELEGRAM_API_ID', 'TELEGRAM_API_HASH', 'TELEGRAM_BOT_TOKEN',
-                'MY_TELEGRAM_CHANNEL', 'TARGET_CHANNELS', 'DISCORD_MODE', 'DISCORD_WEBHOOK_URL',
+                'MY_TELEGRAM_CHANNEL', 'TARGET_CHANNELS', 'WHITELIST_CHANNELS', 'DISCORD_MODE', 'DISCORD_WEBHOOK_URL',
                 'DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_IDS',
                 'EARNKARO_PARTNER_ID', 'AFFILIATE_PLATFORM', 'CUELINKS_API_KEY',
                 'AMAZON_ASSOCIATE_TAG', 'DASHBOARD_PASSWORD'
