@@ -100,6 +100,27 @@ start.bat
 
 ---
 
+## ⚡ Automated Maintenance & System Diagnostics
+
+PB Hero Bot features a premium, comprehensive CLI maintenance utility (`update_and_check.py`) to automatically synchronize the bot's codebase, update system dependencies, analyze logs, audit environment settings, monitor resources, and gracefully reload the daemon service.
+
+### 🛡️ System Diagnostic Pipeline
+1. **GitHub Synchronization:** Auto-fetches and pulls the latest updates from the remote repository's `main` branch.
+2. **Dependency Audit:** Dynamically identifies the active virtual environment (`.venv`) and installs/upgrades packages listed in `requirements.txt`.
+3. **Environmental Auditing:** Scans `.env` to verify the presence and syntax integrity of vital credentials (e.g. API keys, channel IDs, tokens).
+4. **Hardware Capacity Metrics:** Displays active server performance data including **Disk Usage** and **RAM (Memory) Capacity** (with custom threshold alerts).
+5. **Logs & Port Diagnostic:** Scans `deal_forwarder.log` for any runtime errors or connection failures, and verifies if the FastAPI Server is listening on Port 8000.
+6. **System Daemon Hot-Reload:** In Linux production environments, it automatically reloads systemd manager configurations and runs `sudo systemctl restart pbherobot.service` to apply changes instantly while verifying the service becomes fully `active`.
+
+### 🚀 Running the Diagnostic Update Tool
+
+Connect to your server terminal via SSH and run:
+```bash
+python3 update_and_check.py
+```
+
+---
+
 ## ⚙️ Environment Configuration (`.env`)
 
 The system configuration is read from `.env`. The key parameters can be set directly via the Web Dashboard settings tab or manually:
@@ -128,6 +149,7 @@ The system configuration is read from `.env`. The key parameters can be set dire
 PB-HERO-BOT/
 ├── deal_forwarder.py       # Core affiliate forwarding & link converter service
 ├── web_dashboard.py        # FastAPI control server and headless programmatic auth backend
+├── update_and_check.py     # Premium auto-updater and system diagnostics health check tool
 ├── install.sh              # One-click Ubuntu cloud deployment script
 ├── start.bat               # Windows environment setup and startup wizard script
 ├── requirements.txt        # System requirements
