@@ -17,6 +17,19 @@ import json
 import logging
 import asyncio
 import datetime
+
+# Compatibility fallback for Python < 3.9 (e.g., Python 3.8 or 3.7) where asyncio.to_thread does not exist
+if not hasattr(asyncio, "to_thread"):
+    import functools
+    import contextvars
+
+    async def _to_thread(func, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        ctx = contextvars.copy_context()
+        func_call = functools.partial(ctx.run, func, *args, **kwargs)
+        return await loop.run_in_executor(None, func_call)
+
+    asyncio.to_thread = _to_thread
 import urllib.parse
 from typing import List, Union, Dict, Any
 import requests
