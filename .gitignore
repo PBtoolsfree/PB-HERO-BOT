@@ -1,0 +1,31 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment configurations (Credentials and tokens)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Telethon active session stores
+*.session
+*.session-journal
+
+# Live system log outputs
+*.log
+
+# Cache folders
+temp_media/
+.idea/
+.vscode/
+.DS_Store

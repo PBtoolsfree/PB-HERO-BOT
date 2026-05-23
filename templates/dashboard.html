@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PB Hero Bot - Control Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #060913;
+            --panel-bg: rgba(13, 20, 38, 0.6);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary-accent: #6366f1;
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            --success-color: #10b981;
+            --error-color: #f43f5e;
+            --warning-color: #f59e0b;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --shadow-glow: 0 8px 32px 0 rgba(99, 102, 241, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: all 0.25s ease;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(168, 85, 247, 0.08) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(6, 9, 19, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.6);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 8%;
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(6, 9, 19, 0.8);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: var(--shadow-glow);
+        }
+
+        .logo-text h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-text p {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.stopped {
+            background-color: var(--text-muted);
+            box-shadow: 0 0 8px var(--text-muted);
+        }
+
+        .status-dot.running {
+            background-color: var(--success-color);
+            box-shadow: 0 0 12px var(--success-color);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.auth {
+            background-color: var(--warning-color);
+            box-shadow: 0 0 12px var(--warning-color);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        main {
+            flex: 1;
+            padding: 40px 8%;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 32px;
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .glass-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+
+        /* Info Card Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-card:hover {
+            background: rgba(99, 102, 241, 0.03);
+            border-color: rgba(99, 102, 241, 0.15);
+        }
+
+        .stat-val {
+            font-size: 28px;
+            font-weight: 700;
+            margin-top: 4px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Control Panel Styles */
+        .controls-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .controls-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .btn {
+            font-family: 'Outfit', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: var(--shadow-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: #060913;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-danger {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(244, 63, 94, 0.3);
+        }
+
+        /* Config Form Tabs */
+        .tabs-header {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-family: 'Outfit', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            color: var(--primary-accent);
+            border-bottom-color: var(--primary-accent);
+            font-weight: 600;
+        }
+
+        .tab-btn:hover:not(.active) {
+            color: var(--text-main);
+        }
+
+        .tab-pane {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Inputs and labels */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input, .form-group textarea {
+            width: 100%;
+            background: rgba(6, 9, 19, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            font-size: 14px;
+        }
+
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-accent);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+        }
+
+        .form-note {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* Console Terminal */
+        .console-container {
+            display: flex;
+            flex-direction: column;
+            height: 380px;
+            background: #03050a;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            font-family: 'Fira Code', monospace;
+            box-shadow: inset 0 4px 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .console-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .console-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .console-dot.r { background-color: var(--error-color); }
+        .console-dot.y { background-color: var(--warning-color); }
+        .console-dot.g { background-color: var(--success-color); }
+
+        .console-logs {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            font-size: 11px;
+            line-height: 1.6;
+            color: #d1d5db;
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+            word-break: break-all;
+            white-space: pre-wrap;
+        }
+
+        .log-entry.info { color: #818cf8; }
+        .log-entry.error { color: #f87171; }
+        .log-entry.warn { color: #fbbf24; }
+        .log-entry.success { color: #34d399; }
+
+        /* Authentication Wizard Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(6, 9, 19, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: #0c1224;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            width: 100%;
+            max-width: 480px;
+            padding: 32px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95);
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .modal-step {
+            display: none;
+        }
+
+        .modal-step.active {
+            display: block;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        /* Success alerts */
+        .alert {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--text-main);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            transform: translateY(100px);
+            opacity: 0;
+            z-index: 1000;
+        }
+
+        .alert.active {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .alert-error {
+            background: rgba(244, 63, 94, 0.1);
+            border-color: var(--error-color);
+        }
+
+        footer {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-muted);
+            font-size: 12px;
+            border-top: 1px solid var(--border-color);
+            margin-top: auto;
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Notification Alerts -->
+    <div id="toast" class="alert">
+        <span id="toast-icon">✓</span>
+        <span id="toast-msg">Settings saved successfully!</span>
+    </div>
+
+    <!-- Header Panel -->
+    <header>
+        <div class="logo-container">
+            <div class="logo-icon">🚀</div>
+            <div class="logo-text">
+                <h1>PB Hero Bot</h1>
+                <p>Affiliate Deal Forwarding System</p>
+            </div>
+        </div>
+        <div class="status-badge">
+            <span id="header-status-dot" class="status-dot stopped"></span>
+            <span id="header-status-text">Stopped</span>
+        </div>
+    </header>
+
+    <!-- Main Container Grid -->
+    <main>
+        <!-- Config Section (Left Card) -->
+        <section class="glass-card">
+            <div class="controls-header">
+                <h2>Configuration Settings</h2>
+                <button type="button" class="btn btn-primary" onclick="saveConfig()">Save Settings</button>
+            </div>
+
+            <!-- Custom Category Tabs -->
+            <div class="tabs-header">
+                <button type="button" class="tab-btn active" onclick="switchTab('tab-tg-api')">Telegram API</button>
+                <button type="button" class="tab-btn" onclick="switchTab('tab-tg-bot')">Telegram Bot</button>
+                <button type="button" class="tab-btn" onclick="switchTab('tab-targets')">Source Channels</button>
+                <button type="button" class="tab-btn" onclick="switchTab('tab-discord')">Discord Integration</button>
+                <button type="button" class="tab-btn" onclick="switchTab('tab-affiliate-api')">Affiliate API</button>
+                <button type="button" class="tab-btn" onclick="switchTab('tab-security')">Console Security</button>
+            </div>
+
+            <!-- Config Fields Form -->
+            <form id="config-form">
+                <!-- Tab: Telegram API Credentials -->
+                <div id="tab-tg-api" class="tab-pane active">
+                    <div class="form-group">
+                        <label for="TELEGRAM_API_ID">Telegram API ID</label>
+                        <input type="text" id="TELEGRAM_API_ID" placeholder="e.g. 1234567">
+                        <div class="form-note">Get this from <a href="https://my.telegram.org" target="_blank" style="color:var(--primary-accent)">my.telegram.org</a>. Required for logging in.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="TELEGRAM_API_HASH">Telegram API Hash</label>
+                        <input type="password" id="TELEGRAM_API_HASH" placeholder="Your API Hash string">
+                        <div class="form-note">Get this from my.telegram.org. Required to authenticate.</div>
+                    </div>
+                </div>
+
+                <!-- Tab: Telegram Bot Destination -->
+                <div id="tab-tg-bot" class="tab-pane">
+                    <div class="form-group">
+                        <label for="TELEGRAM_BOT_TOKEN">Telegram Bot Token</label>
+                        <input type="password" id="TELEGRAM_BOT_TOKEN" placeholder="e.g. 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ">
+                        <div class="form-note">Get this from @BotFather on Telegram. This bot forwards deals.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="MY_TELEGRAM_CHANNEL">Destination Channel ID / Username</label>
+                        <input type="text" id="MY_TELEGRAM_CHANNEL" placeholder="e.g. -1001234567890 or @my_deals_channel">
+                        <div class="form-note">Where your final affiliate deals are broadcasted. Ensure your bot is an admin here.</div>
+                    </div>
+                </div>
+
+                <!-- Tab: Source Listener Channels -->
+                <div id="tab-targets" class="tab-pane">
+                    <div class="form-group">
+                        <label for="TARGET_CHANNELS">Source Channels (Comma-separated)</label>
+                        <textarea id="TARGET_CHANNELS" rows="4" placeholder="e.g. -1009999999999, @deal_source_channel_1, -1008888888888"></textarea>
+                        <div class="form-note">List of Telegram channels to listen to for live deals. Put one or more comma-separated IDs or usernames.</div>
+                    </div>
+                </div>
+
+                <!-- Tab: Discord Webhook & Bot Integration -->
+                <div id="tab-discord" class="tab-pane">
+                    <div class="form-group">
+                        <label for="DISCORD_MODE">Discord Integration Mode</label>
+                        <select id="DISCORD_MODE" onchange="toggleDiscordFields()" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="webhook">Discord Webhook Mode (Single Server)</option>
+                            <option value="bot">Discord Bot Mode (Multi-Channel broadcast)</option>
+                        </select>
+                        <div class="form-note">Select how you want to forward deals to Discord.</div>
+                    </div>
+
+                    <div id="discord-webhook-fields" class="form-group">
+                        <label for="DISCORD_WEBHOOK_URL">Discord Webhook URL</label>
+                        <input type="text" id="DISCORD_WEBHOOK_URL" placeholder="https://discord.com/api/webhooks/...">
+                        <div class="form-note">Your Discord server webhook url. Leave blank to disable Webhook forwarding.</div>
+                    </div>
+
+                    <div id="discord-bot-fields" class="form-group" style="display:none;">
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label for="DISCORD_BOT_TOKEN">Discord Bot Token</label>
+                            <input type="password" id="DISCORD_BOT_TOKEN" placeholder="MTI5... your Discord Bot Token here">
+                            <div class="form-note">Your Discord application bot token. Ensure your bot is added to your target servers.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="DISCORD_CHANNEL_IDS">Discord Channel IDs (Comma-separated)</label>
+                            <input type="text" id="DISCORD_CHANNEL_IDS" placeholder="e.g. 1205164287352377402, 1109432876352988102">
+                            <div class="form-note">Target text channel IDs where the Discord Bot has permissions to post.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Affiliate API Integration -->
+                <div id="tab-affiliate-api" class="tab-pane">
+                    <div class="form-group">
+                        <label for="AFFILIATE_PLATFORM">Active Affiliate Platform</label>
+                        <select id="AFFILIATE_PLATFORM" onchange="toggleAffiliateFields()" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="earnkaro">EarnKaro (Affiliaters IN API Key)</option>
+                            <option value="cuelinks">Cuelinks (Programmatic API Conversion)</option>
+                        </select>
+                        <div class="form-note">Select which platform to use for converting shopping links.</div>
+                    </div>
+                    
+                    <div id="earnkaro-fields" class="form-group">
+                        <label for="EARNKARO_PARTNER_ID">EarnKaro API Key</label>
+                        <input type="password" id="EARNKARO_PARTNER_ID" placeholder="Paste your EarnKaro API Key (token) here">
+                        <div class="form-note">Your EarnKaro API JWT token. Required if EarnKaro is chosen above.</div>
+                    </div>
+                    
+                    <div id="cuelinks-fields" class="form-group" style="display:none;">
+                        <label for="CUELINKS_API_KEY">Cuelinks API Key</label>
+                        <input type="password" id="CUELINKS_API_KEY" placeholder="Paste your Cuelinks API Key (token) here">
+                        <div class="form-note">Your Cuelinks V2 token. Required if Cuelinks is chosen above.</div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                        <label for="AMAZON_ASSOCIATE_TAG">Direct Amazon Associate Tag (Optional)</label>
+                        <input type="text" id="AMAZON_ASSOCIATE_TAG" placeholder="e.g. pbherogamer-21">
+                        <div class="form-note">If provided, any Amazon deal URL is converted <b>directly locally</b> using your own Store ID tag, bypassing Cuelinks/EarnKaro to secure 100% of the commission!</div>
+                    </div>
+                </div>
+
+                <!-- Tab: Security & Logout settings -->
+                <div id="tab-security" class="tab-pane">
+                    <div class="form-group">
+                        <label for="DASHBOARD_PASSWORD">Dashboard Password</label>
+                        <input type="text" id="DASHBOARD_PASSWORD" placeholder="Your Dashboard Access Password">
+                        <div class="form-note">Access password for this control console dashboard. Keep it safe and secure.</div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                        <button type="button" class="btn btn-danger" style="padding: 10px 20px; font-size: 13px;" onclick="logoutSession()">➔ Log Out of Console</button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Bot Operational Controls Section (Right Columns) -->
+        <section style="display: flex; flex-direction: column; gap: 32px;">
+            <!-- Stats & Start/Stop -->
+            <div class="glass-card">
+                <div class="controls-header">
+                    <h2>Bot Controller</h2>
+                </div>
+
+                <!-- Active Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Deals Caught</div>
+                        <div id="stat-processed" class="stat-val">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">TG Sent</div>
+                        <div id="stat-tg" class="stat-val font-success">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Discord Sent</div>
+                        <div id="stat-discord" class="stat-val font-success">0</div>
+                    </div>
+                </div>
+
+                <!-- Run Control Toggles -->
+                <div style="display:flex; gap:16px;">
+                    <button id="btn-start" type="button" class="btn btn-success" style="flex:1;" onclick="toggleBot('start')">▶ Start Bot</button>
+                    <button id="btn-stop" type="button" class="btn btn-danger" style="flex:1;" onclick="toggleBot('stop')">■ Stop Bot</button>
+                </div>
+            </div>
+
+            <!-- Terminal Live Logs Viewer -->
+            <div class="glass-card" style="padding: 24px;">
+                <div class="controls-header" style="margin-bottom: 16px;">
+                    <h2 style="font-size:16px;">Live System Logs</h2>
+                    <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;" onclick="clearLogs()">Clear Screen</button>
+                </div>
+
+                <div class="console-container">
+                    <div class="console-header">
+                        <div class="console-dots">
+                            <span class="console-dot r"></span>
+                            <span class="console-dot y"></span>
+                            <span class="console-dot g"></span>
+                        </div>
+                        <div>deal_forwarder.log</div>
+                    </div>
+                    <div id="console-logs" class="console-logs">
+                        <div class="log-entry info">System Dashboard Ready. Waiting for connection...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Telethon Authentication Step Modal -->
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-title">🔐 Telegram Authorization Required</div>
+            <p class="modal-desc">This is your first startup! Your Telethon User session needs access code. Please authorize below directly in the browser.</p>
+
+            <!-- Step 1: Input Phone Number -->
+            <div id="auth-step-1" class="modal-step active">
+                <div class="form-group">
+                    <label for="auth-phone">Phone Number (with country code)</label>
+                    <input type="text" id="auth-phone" placeholder="e.g. +91XXXXXXXXXX or +1XXXXXXXXXX">
+                    <div class="form-note">Must include international country prefix code.</div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAuthModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="requestSMSCode()">Request Verification Code</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Input Verification Code & 2FA Password -->
+            <div id="auth-step-2" class="modal-step">
+                <p class="modal-desc" style="color:var(--success-color);">Code sent successfully! Check your Telegram App or SMS.</p>
+                <div class="form-group">
+                    <label for="auth-code">SMS/Telegram App Code</label>
+                    <input type="text" id="auth-code" placeholder="e.g. 12345">
+                </div>
+                <div class="form-group">
+                    <label for="auth-password">2FA Password (If enabled)</label>
+                    <input type="password" id="auth-password" placeholder="Leave empty if 2FA is off">
+                    <div class="form-note">Provide your Telegram 2-Step Verification password if enabled.</div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="resetAuthSteps()">Back</button>
+                    <button type="button" class="btn btn-primary" onclick="submitAuthCode()">Sign In & Authorize</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Panel -->
+    <footer>
+        <p>© 2026 PB Hero Bot Control Systems. Operating in Asynchronous Mode.</p>
+    </footer>
+
+    <!-- Interactive Logic Scripts -->
+    <script>
+        // Active Configurations State
+        let activeTab = 'tab-tg-api';
+        let statusPollInterval = null;
+        let logsPollInterval = null;
+        let lastLogLinesCount = 0;
+
+        // Startup Hooks
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchConfig();
+            pollBotStatus();
+            pollLogs();
+            
+            // Periodically check bot status and logs
+            statusPollInterval = setInterval(pollBotStatus, 3000);
+            logsPollInterval = setInterval(pollLogs, 2500);
+        });
+
+        // Toast Messages Trigger
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const msg = document.getElementById('toast-msg');
+            
+            toast.className = isError ? "alert alert-error" : "alert";
+            icon.innerText = isError ? "✕" : "✓";
+            msg.innerText = message;
+            
+            toast.classList.add('active');
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 4000);
+        }
+
+        // Tab Swappers
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            
+            // Make button active
+            const btnIndex = ['tab-tg-api', 'tab-tg-bot', 'tab-targets', 'tab-discord', 'tab-affiliate-api', 'tab-security'].indexOf(tabId);
+            if (btnIndex !== -1) {
+                document.querySelectorAll('.tab-btn')[btnIndex].classList.add('active');
+            }
+        }
+
+        // Toggle Discord field views
+        function toggleDiscordFields() {
+            const mode = document.getElementById('DISCORD_MODE').value;
+            const webhookFields = document.getElementById('discord-webhook-fields');
+            const botFields = document.getElementById('discord-bot-fields');
+            
+            if (mode === 'bot') {
+                webhookFields.style.display = 'none';
+                botFields.style.display = 'block';
+            } else {
+                webhookFields.style.display = 'block';
+                botFields.style.display = 'none';
+            }
+        }
+
+        // Toggle affiliate fields based on active platform dropdown
+        function toggleAffiliateFields() {
+            const platform = document.getElementById('AFFILIATE_PLATFORM').value;
+            const earnkaroFields = document.getElementById('earnkaro-fields');
+            const cuelinksFields = document.getElementById('cuelinks-fields');
+            
+            if (platform === 'cuelinks') {
+                earnkaroFields.style.display = 'none';
+                cuelinksFields.style.display = 'block';
+            } else {
+                earnkaroFields.style.display = 'block';
+                cuelinksFields.style.display = 'none';
+            }
+        }
+
+        // Validate credentials and show warning badge dynamically
+        function validateFieldsAndShowBadges() {
+            const apiIdVal = document.getElementById('TELEGRAM_API_ID').value.trim();
+            const apiHashVal = document.getElementById('TELEGRAM_API_HASH').value.trim();
+            const tgApiTabBtn = document.querySelectorAll('.tab-btn')[0];
+            
+            if (!apiIdVal || !apiHashVal) {
+                tgApiTabBtn.innerHTML = 'Telegram API <span style="color:var(--error-color); margin-left:4px; font-weight:bold;">⚠️</span>';
+            } else {
+                tgApiTabBtn.innerHTML = 'Telegram API';
+            }
+        }
+
+        // Load configurations from API
+        async function fetchConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (response.ok) {
+                    const data = await response.json();
+                    // Set value for each field
+                    Object.keys(data).forEach(key => {
+                        const input = document.getElementById(key);
+                        if (input) input.value = data[key] || '';
+                    });
+                    
+                    // Call validation to show badges
+                    validateFieldsAndShowBadges();
+                    
+                    // Handle dynamic field toggle
+                    toggleAffiliateFields();
+                    toggleDiscordFields();
+                }
+            } catch (err) {
+                console.error("Failed to load configs", err);
+                showToast("Failed to connect to configurations backend.", true);
+            }
+        }
+
+        // Save Configurations via API
+        async function saveConfig() {
+            const keys = [
+                'TELEGRAM_API_ID', 'TELEGRAM_API_HASH', 'TELEGRAM_BOT_TOKEN',
+                'MY_TELEGRAM_CHANNEL', 'TARGET_CHANNELS', 'DISCORD_MODE', 'DISCORD_WEBHOOK_URL',
+                'DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_IDS',
+                'EARNKARO_PARTNER_ID', 'AFFILIATE_PLATFORM', 'CUELINKS_API_KEY',
+                'AMAZON_ASSOCIATE_TAG', 'DASHBOARD_PASSWORD'
+            ];
+            
+            const payload = {};
+            keys.forEach(k => {
+                const element = document.getElementById(k);
+                if (element) {
+                    payload[k] = element.value;
+                }
+            });
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (response.ok) {
+                    showToast("Configuration settings successfully updated!");
+                    validateFieldsAndShowBadges();
+                } else {
+                    const errDetail = await response.text();
+                    showToast("Error updating settings: " + errDetail, true);
+                }
+            } catch (err) {
+                showToast("Connection to Server failed.", true);
+            }
+        }
+
+        // Clear user session cookie
+        async function logoutSession() {
+            try {
+                const response = await fetch('/api/logout', { method: 'POST' });
+                if (response.ok) {
+                    showToast("Logged out successfully! Reloading...");
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
+                }
+            } catch (err) {
+                showToast("Failed to log out.", true);
+            }
+        }
+
+
+        // Poll Logs from server
+        async function pollLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                if (response.ok) {
+                    const logs = await response.json();
+                    const logContainer = document.getElementById('console-logs');
+                    
+                    // Clear and append
+                    logContainer.innerHTML = '';
+                    if (logs.length === 0) {
+                        logContainer.innerHTML = '<div class="log-entry info">Terminal connection active. Waiting for system events...</div>';
+                        return;
+                    }
+                    
+                    logs.forEach(log => {
+                        const div = document.createElement('div');
+                        div.className = 'log-entry';
+                        
+                        // Parse simple colors based on text
+                        if (log.includes('[ERROR]') || log.includes('Failed')) {
+                            div.classList.add('error');
+                        } else if (log.includes('[WARNING]')) {
+                            div.classList.add('warn');
+                        } else if (log.includes('Successfully') || log.includes('Success')) {
+                            div.classList.add('success');
+                        } else {
+                            div.classList.add('info');
+                        }
+                        
+                        div.innerText = log;
+                        logContainer.appendChild(div);
+                    });
+                    
+                    // Scroll to bottom
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            } catch (err) {
+                console.error("Log fetch failure", err);
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('console-logs').innerHTML = '<div class="log-entry info">Logs cleared by operator.</div>';
+        }
+
+        // Poll Bot status and metrics
+        async function pollBotStatus() {
+            try {
+                const response = await fetch('/api/bot/status');
+                if (response.ok) {
+                    const statusData = await response.json();
+                    
+                    // Update header badge
+                    const dot = document.getElementById('header-status-dot');
+                    const text = document.getElementById('header-status-text');
+                    
+                    const state = statusData.status; // 'stopped', 'running', 'authenticating', 'error'
+                    
+                    dot.className = "status-dot " + state;
+                    text.innerText = state.toUpperCase();
+                    
+                    // Update metrics
+                    document.getElementById('stat-processed').innerText = statusData.stats.processed;
+                    document.getElementById('stat-tg').innerText = statusData.stats.telegram_success;
+                    document.getElementById('stat-discord').innerText = statusData.stats.discord_success;
+                    
+                    // Enable/Disable control buttons
+                    const btnStart = document.getElementById('btn-start');
+                    const btnStop = document.getElementById('btn-stop');
+                    
+                    if (state === 'running') {
+                        btnStart.disabled = true;
+                        btnStart.style.opacity = 0.5;
+                        btnStop.disabled = false;
+                        btnStop.style.opacity = 1;
+                    } else {
+                        btnStart.disabled = false;
+                        btnStart.style.opacity = 1;
+                        btnStop.disabled = true;
+                        btnStop.style.opacity = 0.5;
+                    }
+
+                    // Open Web Auth Modal if needed
+                    if (state === 'authenticating') {
+                        openAuthModal();
+                    }
+                }
+            } catch (err) {
+                console.error("Status fetch failure", err);
+            }
+        }
+
+        // Start/Stop Bot triggers
+        async function toggleBot(action) {
+            try {
+                const response = await fetch(`/api/bot/${action}`, { method: 'POST' });
+                const resText = await response.json();
+                
+                if (response.ok) {
+                    if (resText.status === 'authenticating') {
+                        showToast("Telegram session needs login! Starting Auth Wizard...");
+                        openAuthModal();
+                    } else {
+                        showToast(`Bot toggle successfully sent: ${action.toUpperCase()}`);
+                    }
+                    pollBotStatus();
+                } else {
+                    showToast("Error: " + resText.detail, true);
+                }
+            } catch (err) {
+                showToast("Request to start/stop failed.", true);
+            }
+        }
+
+        // Web Authentication Wizard flow
+        function openAuthModal() {
+            document.getElementById('auth-modal').classList.add('active');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('auth-modal').classList.remove('active');
+            resetAuthSteps();
+        }
+
+        function resetAuthSteps() {
+            document.getElementById('auth-step-1').classList.add('active');
+            document.getElementById('auth-step-2').classList.remove('active');
+        }
+
+        async function requestSMSCode() {
+            const phone = document.getElementById('auth-phone').value.trim();
+            if (!phone) {
+                showToast("Please enter a valid phone number.", true);
+                return;
+            }
+
+            try {
+                showToast("Requesting Telegram verification code...");
+                const response = await fetch('/api/auth/send_code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone_number: phone })
+                });
+
+                const resData = await response.json();
+                if (response.ok) {
+                    showToast("Verification code requested successfully!");
+                    document.getElementById('auth-step-1').classList.remove('active');
+                    document.getElementById('auth-step-2').classList.add('active');
+                } else {
+                    showToast("Telegram error: " + resData.detail, true);
+                }
+            } catch (err) {
+                showToast("Failed to connect to Telegram auth servers.", true);
+            }
+        }
+
+        async function submitAuthCode() {
+            const code = document.getElementById('auth-code').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            const phone = document.getElementById('auth-phone').value.trim();
+
+            if (!code) {
+                showToast("Please enter the 5-digit verification code.", true);
+                return;
+            }
+
+            try {
+                showToast("Verifying session with Telegram...");
+                const response = await fetch('/api/auth/verify_code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        phone_number: phone,
+                        code: code,
+                        password: password
+                    })
+                });
+
+                const resData = await response.json();
+                if (response.ok) {
+                    showToast("Authentication Successful! Bot has started.", false);
+                    closeAuthModal();
+                    pollBotStatus();
+                } else {
+                    showToast("Authentication Failed: " + resData.detail, true);
+                }
+            } catch (err) {
+                showToast("Failed to verify authentication code.", true);
+            }
+        }
+    </script>
+</body>
+</html>
