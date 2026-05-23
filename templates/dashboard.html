@@ -610,6 +610,11 @@
                         <input type="text" id="MY_TELEGRAM_CHANNEL" placeholder="e.g. -1001234567890 or @my_deals_channel">
                         <div class="form-note">Where your final affiliate deals are broadcasted. Ensure your bot is an admin here.</div>
                     </div>
+                    <div class="form-group" style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                        <label for="DELAY_INTERVAL">Smart Posting Delay (Seconds)</label>
+                        <input type="number" id="DELAY_INTERVAL" placeholder="e.g. 900">
+                        <div class="form-note">Delay interval (in seconds) between consecutive posts to prevent channel spam. Set to 0 to post instantly without delay. (e.g., 900 seconds = 15 minutes).</div>
+                    </div>
                 </div>
 
                 <div id="tab-targets" class="tab-pane">
@@ -923,9 +928,8 @@
                 'MY_TELEGRAM_CHANNEL', 'TARGET_CHANNELS', 'WHITELIST_CHANNELS', 'DISCORD_MODE', 'DISCORD_WEBHOOK_URL',
                 'DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_IDS',
                 'EARNKARO_PARTNER_ID', 'AFFILIATE_PLATFORM', 'CUELINKS_API_KEY',
-                'AMAZON_ASSOCIATE_TAG', 'DASHBOARD_PASSWORD'
+                'AMAZON_ASSOCIATE_TAG', 'DELAY_INTERVAL', 'DASHBOARD_PASSWORD'
             ];
-            
             const payload = {};
             keys.forEach(k => {
                 const element = document.getElementById(k);

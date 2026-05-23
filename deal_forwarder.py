@@ -200,6 +200,8 @@ class DealForwarderService:
         self.client = None
         self.is_running = False
         self._handler_ref = None
+        self.deal_queue = asyncio.Queue()
+        self.queue_worker_task = None
         
         # Load configs
         self.load_config(config_dict)
@@ -222,7 +224,8 @@ class DealForwarderService:
                 "EARNKARO_PARTNER_ID": os.getenv("EARNKARO_PARTNER_ID", "YOUR_ID"),
                 "AFFILIATE_PLATFORM": os.getenv("AFFILIATE_PLATFORM", "earnkaro"),
                 "CUELINKS_API_KEY": os.getenv("CUELINKS_API_KEY", ""),
-                "AMAZON_ASSOCIATE_TAG": os.getenv("AMAZON_ASSOCIATE_TAG", "")
+                "AMAZON_ASSOCIATE_TAG": os.getenv("AMAZON_ASSOCIATE_TAG", ""),
+                "DELAY_INTERVAL": os.getenv("DELAY_INTERVAL", "900")
             }
 
         self.config = {
@@ -237,13 +240,15 @@ class DealForwarderService:
             "affiliate_platform": config_dict.get("AFFILIATE_PLATFORM", "earnkaro"),
             "cuelinks_api_key": config_dict.get("CUELINKS_API_KEY", ""),
             "amazon_tag": config_dict.get("AMAZON_ASSOCIATE_TAG", ""),
-            "whitelist_channels_raw": config_dict.get("WHITELIST_CHANNELS", "")
+            "whitelist_channels_raw": config_dict.get("WHITELIST_CHANNELS", ""),
+            "delay_interval_raw": config_dict.get("DELAY_INTERVAL", "900")
         }
 
         # Parse Channels
         self.config["my_channel"] = self._parse_channel_id(config_dict.get("MY_TELEGRAM_CHANNEL", ""))
         self.config["target_channels"] = self._parse_target_channels(config_dict.get("TARGET_CHANNELS", ""))
         self.config["whitelist_channels"] = self._parse_target_channels(config_dict.get("WHITELIST_CHANNELS", ""))
+        self.config["delay_interval"] = int(self.config["delay_interval_raw"] if str(self.config["delay_interval_raw"]).isdigit() else 900)
         
         # Parse Discord Target Channels
         self.config["discord_channels"] = [
@@ -741,19 +746,63 @@ class DealForwarderService:
             except Exception as e:
                 logger.error(f"Media download failed: {e}")
 
+        # Put the processed deal into our queue!
+        deal_payload = {
+            "escaped_text": escaped_tg_text,
+            "raw_text": cleaned_text,
+            "affiliate_url": affiliate_url,
+            "photo_path": photo_path  # The worker will clean this up after sending!
+        }
+        
         try:
-            # Dispatch broadcasts
-            await self.send_to_telegram(escaped_tg_text, affiliate_url, photo_path)
-            await self.send_to_discord(cleaned_text, affiliate_url, photo_path)
+            await self.deal_queue.put(deal_payload)
+            logger.info(f"Successfully added deal to queue. Current queue size: {self.deal_queue.qsize()}. Will post shortly.")
         except Exception as e:
-            logger.error(f"Error in broadcast pipeline: {e}")
-        finally:
+            logger.error(f"Failed to queue deal: {e}")
+            # Fallback: clean up temp file if queuing failed
             if photo_path and os.path.exists(photo_path):
                 try:
                     os.remove(photo_path)
-                    logger.info("Removed temporary media file.")
-                except Exception as e:
-                    logger.error(f"Failed to delete temp media: {e}")
+                except:
+                    pass
+
+    async def deal_queue_worker(self):
+        """Asynchronous worker to process and send deals at configured intervals to prevent spam."""
+        logger.info("Deal Queue Worker: Thread started and listening for deals...")
+        try:
+            while self.is_running:
+                # Wait for the next deal
+                deal = await self.deal_queue.get()
+                
+                try:
+                    logger.info(f"Queue Worker: Processing deal. Queue size: {self.deal_queue.qsize()}")
+                    # Send to Telegram
+                    await self.send_to_telegram(deal["escaped_text"], deal["affiliate_url"], deal["photo_path"])
+                    # Send to Discord
+                    await self.send_to_discord(deal["raw_text"], deal["affiliate_url"], deal["photo_path"])
+                except Exception as ex:
+                    logger.error(f"Queue Worker: Error sending queued deal: {ex}")
+                finally:
+                    # Clean up the photo file if it exists
+                    photo_path = deal.get("photo_path")
+                    if photo_path and os.path.exists(photo_path):
+                        try:
+                            os.remove(photo_path)
+                            logger.info(f"Queue Worker: Cleaned up temporary media: {photo_path}")
+                        except Exception as e:
+                            logger.error(f"Queue Worker: Failed to delete temp media: {e}")
+                    
+                    self.deal_queue.task_done()
+                
+                # Sleep for configured interval
+                delay = int(self.config.get("delay_interval", 900))
+                if delay > 0 and self.is_running:
+                    logger.info(f"Queue Worker: Waiting {delay} seconds before next post to prevent spam...")
+                    await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            logger.info("Queue Worker: Worker task cancelled cleanly.")
+        except Exception as e:
+            logger.error(f"Queue Worker: Crash exception: {e}")
 
     # =====================================================================
     # LIFECYCLE MANAGEMENT
@@ -797,6 +846,11 @@ class DealForwarderService:
  
         self.stats["start_time"] = datetime.datetime.now()
         self.is_running = True
+
+        # Start background queue worker
+        if not self.queue_worker_task:
+            self.queue_worker_task = asyncio.create_task(self.deal_queue_worker())
+
         logger.info("Deal Forwarding Service is fully operational!")
         return True
  
@@ -806,6 +860,12 @@ class DealForwarderService:
             return
             
         logger.info("Stopping Deal Forwarding Service...")
+        
+        # Cancel background queue worker
+        if self.queue_worker_task:
+            self.queue_worker_task.cancel()
+            self.queue_worker_task = None
+
         if self.client:
             if self._handler_ref:
                 try:
@@ -856,8 +916,15 @@ async def run_standalone():
         logger.warning("No TARGET_CHANNELS defined. Listening is disabled.")
 
     service.is_running = True
+    # Start background queue worker
+    service.queue_worker_task = asyncio.create_task(service.deal_queue_worker())
+    
     logger.info("Waiting for deals... Press Ctrl+C to terminate.")
-    await service.client.run_until_disconnected()
+    try:
+        await service.client.run_until_disconnected()
+    finally:
+        if service.queue_worker_task:
+            service.queue_worker_task.cancel()
 
 if __name__ == '__main__':
     try:

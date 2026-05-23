@@ -168,6 +168,9 @@ def save_env_configs(configs: Dict[str, str]):
             f.write("# [DIRECT AMAZON ASSOCIATES SETTINGS]\n")
             f.write(f"AMAZON_ASSOCIATE_TAG={configs.get('AMAZON_ASSOCIATE_TAG', '').strip()}\n\n")
 
+            f.write("# [SMART QUEUE POSTING DELAY (SECONDS)]\n")
+            f.write(f"DELAY_INTERVAL={configs.get('DELAY_INTERVAL', '900').strip()}\n\n")
+
             f.write("# [DASHBOARD SECURITY]\n")
             f.write(f"DASHBOARD_PASSWORD={configs.get('DASHBOARD_PASSWORD', DASHBOARD_PASSWORD).strip()}\n")
             
@@ -250,6 +253,7 @@ async def get_current_configuration(request: Request):
         "AFFILIATE_PLATFORM": os.getenv("AFFILIATE_PLATFORM", "earnkaro"),
         "CUELINKS_API_KEY": os.getenv("CUELINKS_API_KEY", ""),
         "AMAZON_ASSOCIATE_TAG": os.getenv("AMAZON_ASSOCIATE_TAG", ""),
+        "DELAY_INTERVAL": os.getenv("DELAY_INTERVAL", "900"),
         "DASHBOARD_PASSWORD": os.getenv("DASHBOARD_PASSWORD", DASHBOARD_PASSWORD)
     }
 
