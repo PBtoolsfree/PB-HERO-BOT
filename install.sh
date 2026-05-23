@@ -134,8 +134,8 @@ echo
 
 # 7. Automate Linux VPS Firewalls
 echo -e "${YELLOW}[6/6] Opening network ports in system firewall (Port 8000)...${NC}"
-# Allow TCP traffic on 8000 inside iptables
-iptables -I INPUT 6 -p tcp --dport 8000 -j ACCEPT
+# Allow TCP traffic on 8000 inside iptables at position 1 to bypass OCI default reject rules
+iptables -I INPUT 1 -p tcp --dport 8000 -j ACCEPT
 # Save rules permanently across reboots
 netfilter-persistent save
 echo -e "${GREEN}[SUCCESS] Network ports mapped and saved to persistent iptables rules.${NC}"
