@@ -458,20 +458,41 @@ class DealForwarderService:
 
     async def send_to_discord(self, text: str, affiliate_url: str = None, photo_path: str = None) -> bool:
         """Dispatches deal to Discord using the active integration mode (webhook or bot)."""
+        # If no affiliate_url was provided, but there are URLs in the text, extract the first one (e.g. for whitelisted channels)
+        if not affiliate_url:
+            urls = URL_REGEX.findall(text or "")
+            if urls:
+                affiliate_url = urls[0]
+                
         mode = self.config.get("discord_mode", "webhook").lower()
         if mode == "bot":
             return await self.send_to_discord_bot(text, affiliate_url, photo_path)
         return await self.send_to_discord_webhook(text, affiliate_url, photo_path)
 
     async def send_to_discord_webhook(self, text: str, affiliate_url: str = None, photo_path: str = None) -> bool:
-        """Sends Rich Embed to Discord webhook with optional image and @everyone tagging."""
+        """Sends a beautiful Rich Embed and native Buy Button to Discord webhook with optional image."""
         webhook_url = self.config.get("discord_webhook")
         if not webhook_url:
             return False
             
-        description_text = text
+        # Clean URL out of description block if we render it as a button
+        cleaned_msg_text = text
         if affiliate_url:
-            description_text = f"{text}\n\n**[🛒 Shop Now / यहाँ से खरीदें]({affiliate_url})**"
+            cleaned_msg_text = text.replace(affiliate_url, "").strip()
+            cleaned_msg_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_msg_text).strip()
+            
+        # Format the description block with premium markdown styling
+        if affiliate_url:
+            description_text = (
+                f"✨ **LIMITED TIME DEAL** ✨\n"
+                f"━━━━━━━━━━━━━━━━━━━\n\n"
+                f"{cleaned_msg_text}\n\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"🚀 **[🛒 SHOP NOW / यहाँ से खरीदें]({affiliate_url})** ➔\n"
+                f"━━━━━━━━━━━━━━━━━━━"
+            )
+        else:
+            description_text = text
             
         payload = {
             "content": "@everyone",
@@ -487,6 +508,22 @@ class DealForwarderService:
                 }
             ]
         }
+        
+        # Add a premium native Link Button to the bottom of the embed card!
+        if affiliate_url:
+            payload["components"] = [
+                {
+                    "type": 1,  # Action Row
+                    "components": [
+                        {
+                            "type": 2,  # Button Component
+                            "style": 5,  # Link Button Style
+                            "label": "🛍️ SHOP NOW / यहाँ से खरीदें ➔",
+                            "url": affiliate_url
+                        }
+                    ]
+                }
+            ]
         
         if photo_path and os.path.exists(photo_path):
             payload["embeds"][0]["image"] = {"url": "attachment://image.jpg"}
@@ -538,9 +575,24 @@ class DealForwarderService:
             logger.error("Discord Bot Send Failed: Bot token or target channel list is empty.")
             return False
 
-        description_text = text
+        # Clean URL out of description block if we render it as a button
+        cleaned_msg_text = text
         if affiliate_url:
-            description_text = f"{text}\n\n**[🛒 Shop Now / यहाँ से खरीदें]({affiliate_url})**"
+            cleaned_msg_text = text.replace(affiliate_url, "").strip()
+            cleaned_msg_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_msg_text).strip()
+            
+        # Format the description block with premium markdown styling
+        if affiliate_url:
+            description_text = (
+                f"✨ **LIMITED TIME DEAL** ✨\n"
+                f"━━━━━━━━━━━━━━━━━━━\n\n"
+                f"{cleaned_msg_text}\n\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"🚀 **[🛒 SHOP NOW / यहाँ से खरीदें]({affiliate_url})** ➔\n"
+                f"━━━━━━━━━━━━━━━━━━━"
+            )
+        else:
+            description_text = text
             
         payload = {
             "content": "@everyone",
@@ -556,6 +608,22 @@ class DealForwarderService:
                 }
             ]
         }
+        
+        # Add a premium native Link Button to the bottom of the embed card!
+        if affiliate_url:
+            payload["components"] = [
+                {
+                    "type": 1,  # Action Row
+                    "components": [
+                        {
+                            "type": 2,  # Button Component
+                            "style": 5,  # Link Button Style
+                            "label": "🛍️ SHOP NOW / यहाँ से खरीदें ➔",
+                            "url": affiliate_url
+                        }
+                    ]
+                }
+            ]
 
         headers = {
             "Authorization": f"Bot {bot_token.strip()}"
@@ -587,6 +655,22 @@ class DealForwarderService:
                 if response.status_code in [200, 201, 204]:
                     success_count += 1
                     logger.info(f"Discord Bot successfully sent deal to channel: {channel_id}")
+                    
+                    # Try to automatically crosspost/publish the message (extremely useful for News/Announcement channels)
+                    res_json = response.json()
+                    msg_id = res_json.get("id")
+                    if msg_id:
+                        try:
+                            crosspost_url = f"https://discord.com/api/v10/channels/{channel_id}/messages/{msg_id}/crosspost"
+                            def _crosspost():
+                                return requests.post(crosspost_url, headers={"Authorization": f"Bot {bot_token.strip()}"}, timeout=8)
+                            crosspost_res = await asyncio.to_thread(_crosspost)
+                            if crosspost_res.status_code == 200:
+                                logger.info(f"Discord Bot successfully auto-published (crossposted) message {msg_id} on channel {channel_id}!")
+                            else:
+                                logger.debug(f"Auto-publish skipped or returned status {crosspost_res.status_code}")
+                        except Exception as cp_err:
+                            logger.debug(f"Auto-publish exception: {cp_err}")
                 else:
                     logger.error(f"Discord Bot failed for channel {channel_id} with status {response.status_code}: {response.text}")
             except Exception as e:
