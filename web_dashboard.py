@@ -49,6 +49,46 @@ bot_status = "stopped"  # 'stopped', 'running', 'authenticating', 'error'
 phone_code_hashes = {}  # Map phone_number -> phone_code_hash
 
 # =====================================================================
+# AUTOMATED BOT AUTO-START ON BOOT / RESTART
+# =====================================================================
+@app.on_event("startup")
+async def startup_event():
+    """Tries to auto-start the forwarding service on boot if already authenticated."""
+    global bot_service, bot_status
+    load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"), override=True)
+    api_id = os.getenv("TELEGRAM_API_ID")
+    api_hash = os.getenv("TELEGRAM_API_HASH")
+    
+    if not api_id or not api_hash:
+        logger.info("Auto-start: Missing API credentials in .env. Waiting for manual configuration.")
+        return
+        
+    try:
+        logger.info("Auto-start: Attempting to automatically start forwarding service...")
+        bot_service = DealForwarderService()
+        session_path = os.path.join(BASE_DIR, 'deal_forwarder_session')
+        bot_service.client = TelegramClient(session_path, int(api_id), api_hash)
+        
+        await bot_service.client.connect()
+        
+        if await bot_service.client.is_user_authorized():
+            success = await bot_service.start()
+            if success:
+                bot_status = "running"
+                logger.info("Auto-start: Forwarding service successfully auto-started on boot!")
+            else:
+                bot_status = "error"
+                logger.error("Auto-start: Client authorized but listener streams failed to launch.")
+        else:
+            bot_status = "stopped"
+            logger.info("Auto-start: Client not authorized yet. SMS authentication is required via dashboard.")
+            # Gracefully disconnect
+            await bot_service.client.disconnect()
+    except Exception as e:
+        bot_status = "error"
+        logger.error(f"Auto-start failure: {e}", exc_info=True)
+
+# =====================================================================
 # DYNAMIC PASSWORD SETUP & COOKIE AUTH
 # =====================================================================
 def ensure_dashboard_password() -> str:
