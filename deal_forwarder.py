@@ -500,7 +500,6 @@ class DealForwarderService:
             description_text = text
             
         payload = {
-            "content": "@everyone",
             "embeds": [
                 {
                     "title": "🔥🔥 Limited Time Deal! 🔥🔥",
@@ -600,7 +599,6 @@ class DealForwarderService:
             description_text = text
             
         payload = {
-            "content": "@everyone",
             "embeds": [
                 {
                     "title": "🔥🔥 Limited Time Deal! 🔥🔥",
