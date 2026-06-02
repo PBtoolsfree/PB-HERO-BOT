@@ -35,6 +35,211 @@ from typing import List, Union, Dict, Any
 import requests
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
+import sqlite3
+import shutil
+import base64
+
+# Database path
+DB_PATH = os.path.join(BASE_DIR, "pinterest_deals.db")
+PINTEREST_MEDIA_DIR = os.path.join(BASE_DIR, "pinterest_media")
+
+def init_db():
+    """Initializes SQLite database and tables for Pinterest integration."""
+    os.makedirs(PINTEREST_MEDIA_DIR, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    # Create the pinterest_deals table without the pinterest_pin_id field (Pinterest API Data Storage Policy Safety compliance).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pinterest_deals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            product_title TEXT,
+            cleaned_description TEXT,
+            original_text TEXT,
+            image_path TEXT,
+            original_url TEXT,
+            affiliate_url TEXT,
+            mrp REAL,
+            offer_price REAL,
+            discount_percentage INTEGER,
+            saving_amount REAL,
+            source_platform TEXT DEFAULT 'telegram',
+            status TEXT DEFAULT 'pending',
+            failure_reason TEXT,
+            posted_at TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# Initialize DB on module load
+init_db()
+
+def extract_prices(text: str) -> tuple:
+    """
+    Extracts original price/MRP and offer price from Indian deal text formats.
+    Returns (mrp, offer_price). Values are float or None.
+    Supported patterns:
+    - MRP: ₹29,999 or MRP: Rs 29,999
+    - Deal Price: ₹24,999 or Deal Price: Rs 24,999
+    - Now ₹1,499
+    - Price: Rs. 999
+    """
+    if not text:
+        return None, None
+        
+    mrp = None
+    offer_price = None
+
+    # Normalize text by removing commas inside numbers (e.g. 29,999 -> 29999) to simplify regex matching
+    normalized_text = text
+    num_comma_pattern = re.compile(r'(\d),(\d{3})')
+    while num_comma_pattern.search(normalized_text):
+        normalized_text = num_comma_pattern.sub(r'\1\2', normalized_text)
+
+    # Search for MRP / Was / Original Price / regular / list / regular / List Price / Original Price / MRP
+    mrp_match = re.search(r'(?:mrp|original|list|regular|was|m\.r\.p\.)\s*(?:price)?\s*:?\s*(?:₹|Rs\.?)?\s*(\d+(?:\.\d+)?)', normalized_text, re.IGNORECASE)
+    if mrp_match:
+        try:
+            mrp = float(mrp_match.group(1))
+        except ValueError:
+            pass
+
+    # Search for Deal Price / Offer Price / Now / Price / Buy / Offer / Special Price / Deal / Buy Now
+    offer_match = re.search(r'(?:deal|offer|now|price|buy|special|today)\s*(?:price)?\s*:?\s*(?:₹|Rs\.?)?\s*(\d+(?:\.\d+)?)', normalized_text, re.IGNORECASE)
+    if offer_match:
+        try:
+            offer_price = float(offer_match.group(1))
+        except ValueError:
+            pass
+            
+    # Fallback: if we didn't find MRP or offer price explicitly by labels, but we have multiple price mentions (e.g., ₹29999 ₹24999)
+    if mrp is None or offer_price is None:
+        price_mentions = re.findall(r'(?:₹|Rs\.?)\s*(\d+(?:\.\d+)?)', normalized_text, re.IGNORECASE)
+        found_prices = []
+        for p in price_mentions:
+            try:
+                found_prices.append(float(p))
+            except ValueError:
+                pass
+        
+        if len(found_prices) >= 2:
+            mrp_val = max(found_prices)
+            offer_val = min(found_prices)
+            if mrp_val > offer_val:
+                if mrp is None:
+                    mrp = mrp_val
+                if offer_price is None:
+                    offer_price = offer_val
+        elif len(found_prices) == 1:
+            if offer_price is None:
+                offer_price = found_prices[0]
+
+    return mrp, offer_price
+
+def extract_discount_percentage(text: str, mrp: float = None, offer_price: float = None) -> int:
+    """
+    Extracts the maximum discount percentage from text, or calculates it from MRP and offer price.
+    Returns an integer percentage.
+    """
+    if not text:
+        return 0
+        
+    percentages = []
+
+    # 1. Match direct percentage format: "50% OFF", "Flat 40% Off", "Save 35%", "30 percent discount"
+    pct_matches = re.findall(r'(\d+)\s*(?:%|percent)\s*(?:off|discount|save|छूट)?', text, re.IGNORECASE)
+    for m in pct_matches:
+        try:
+            val = int(m)
+            if 0 < val <= 100:
+                percentages.append(val)
+        except ValueError:
+            pass
+
+    # Matches "Save 35%"
+    save_pct_matches = re.findall(r'save\s*(\d+)\s*(?:%|percent)?', text, re.IGNORECASE)
+    for m in save_pct_matches:
+        try:
+            val = int(m)
+            if 0 < val <= 100:
+                percentages.append(val)
+        except ValueError:
+            pass
+
+    # 2. Calculate if not found directly
+    if not percentages and mrp and offer_price and mrp > offer_price > 0:
+        try:
+            pct = int(((mrp - offer_price) / mrp) * 100)
+            if 0 < pct <= 100:
+                percentages.append(pct)
+        except Exception:
+            pass
+
+    if percentages:
+        return max(percentages)
+    return 0
+
+def calculate_saving(mrp: float, offer_price: float) -> float:
+    """Calculates the absolute saving amount (mrp - offer_price)."""
+    if mrp and offer_price and mrp > offer_price:
+        return mrp - offer_price
+    return 0.0
+
+def check_duplicate_deal(affiliate_url: str, title: str, offer_price: float, duplicate_days: int) -> bool:
+    """
+    Checks if a duplicate deal was added to Pinterest queue within the last duplicate_days.
+    Returns True if a duplicate is found, False otherwise.
+    """
+    if not duplicate_days:
+        duplicate_days = 7
+        
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Calculate cutoff time
+    cutoff = (datetime.datetime.now() - datetime.timedelta(days=duplicate_days)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # 1. Check duplicate affiliate URL
+    if affiliate_url:
+        cursor.execute("""
+            SELECT id FROM pinterest_deals 
+            WHERE affiliate_url = ? 
+              AND status IN ('pending', 'posted') 
+              AND created_at >= ?
+        """, (affiliate_url, cutoff))
+        if cursor.fetchone():
+            conn.close()
+            return True
+            
+    # 2. Check duplicate title + price
+    if title:
+        norm_title = re.sub(r'[^a-zA-Z0-9]', '', title).lower().strip()
+        
+        cursor.execute("""
+            SELECT id, product_title, offer_price FROM pinterest_deals 
+            WHERE status IN ('pending', 'posted') 
+              AND created_at >= ?
+        """, (cutoff,))
+        rows = cursor.fetchall()
+        for r_id, r_title, r_price in rows:
+            if r_title:
+                r_norm = re.sub(r'[^a-zA-Z0-9]', '', r_title).lower().strip()
+                if r_norm == norm_title:
+                    price_match = False
+                    if offer_price is None and r_price is None:
+                        price_match = True
+                    elif offer_price is not None and r_price is not None:
+                        if abs(offer_price - r_price) < 1.0:
+                            price_match = True
+                    
+                    if price_match:
+                        conn.close()
+                        return True
+                        
+    conn.close()
+    return False
+
 
 # Compute absolute base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -194,6 +399,7 @@ class DealForwarderService:
             "processed": 0,
             "telegram_success": 0,
             "discord_success": 0,
+            "pinterest_success": 0,
             "failures": 0,
             "start_time": None
         }
@@ -225,7 +431,14 @@ class DealForwarderService:
                 "AFFILIATE_PLATFORM": os.getenv("AFFILIATE_PLATFORM", "earnkaro"),
                 "CUELINKS_API_KEY": os.getenv("CUELINKS_API_KEY", ""),
                 "AMAZON_ASSOCIATE_TAG": os.getenv("AMAZON_ASSOCIATE_TAG", ""),
-                "DELAY_INTERVAL": os.getenv("DELAY_INTERVAL", "900")
+                "DELAY_INTERVAL": os.getenv("DELAY_INTERVAL", "900"),
+                "PINTEREST_ENABLED": os.getenv("PINTEREST_ENABLED", "false"),
+                "PINTEREST_ACCESS_TOKEN": os.getenv("PINTEREST_ACCESS_TOKEN", ""),
+                "PINTEREST_BOARD_ID": os.getenv("PINTEREST_BOARD_ID", ""),
+                "PINTEREST_MIN_DISCOUNT": os.getenv("PINTEREST_MIN_DISCOUNT", "30"),
+                "PINTEREST_MIN_SAVING": os.getenv("PINTEREST_MIN_SAVING", "300"),
+                "PINTEREST_DAILY_LIMIT": os.getenv("PINTEREST_DAILY_LIMIT", "5"),
+                "PINTEREST_DUPLICATE_DAYS": os.getenv("PINTEREST_DUPLICATE_DAYS", "7")
             }
 
         self.config = {
@@ -241,7 +454,14 @@ class DealForwarderService:
             "cuelinks_api_key": config_dict.get("CUELINKS_API_KEY", ""),
             "amazon_tag": config_dict.get("AMAZON_ASSOCIATE_TAG", ""),
             "whitelist_channels_raw": config_dict.get("WHITELIST_CHANNELS", ""),
-            "delay_interval_raw": config_dict.get("DELAY_INTERVAL", "900")
+            "delay_interval_raw": config_dict.get("DELAY_INTERVAL", "900"),
+            "pinterest_enabled": str(config_dict.get("PINTEREST_ENABLED", "false")).lower() == "true",
+            "pinterest_access_token": config_dict.get("PINTEREST_ACCESS_TOKEN", ""),
+            "pinterest_board_id": config_dict.get("PINTEREST_BOARD_ID", ""),
+            "pinterest_min_discount": int(config_dict.get("PINTEREST_MIN_DISCOUNT") if str(config_dict.get("PINTEREST_MIN_DISCOUNT")).isdigit() else 30),
+            "pinterest_min_saving": float(config_dict.get("PINTEREST_MIN_SAVING") if str(config_dict.get("PINTEREST_MIN_SAVING")).replace('.', '', 1).isdigit() else 300.0),
+            "pinterest_daily_limit": int(config_dict.get("PINTEREST_DAILY_LIMIT") if str(config_dict.get("PINTEREST_DAILY_LIMIT")).isdigit() else 5),
+            "pinterest_duplicate_days": int(config_dict.get("PINTEREST_DUPLICATE_DAYS") if str(config_dict.get("PINTEREST_DUPLICATE_DAYS")).isdigit() else 7)
         }
 
         # Parse Channels
@@ -755,6 +975,99 @@ class DealForwarderService:
         try:
             await self.deal_queue.put(deal_payload)
             logger.info(f"Successfully added deal to queue. Current queue size: {self.deal_queue.qsize()}. Will post shortly.")
+            
+            # --- START PINTEREST ELIGIBILITY & DB WORKFLOW ---
+            # Run Pinterest logic asynchronously so it doesn't block Telegram / Discord send
+            async def run_pinterest_validation():
+                try:
+                    # Clean title & prices
+                    product_title = text.split('\n')[0].strip()
+                    product_title = re.sub(r'<[^>]*>', '', product_title) # Strip HTML tags
+                    product_title = product_title.replace('*', '').replace('_', '').replace('~', '').strip()
+                    product_title = product_title[:100] # Pinterest title length limit
+                    
+                    mrp, offer_price = extract_prices(text)
+                    discount_percentage = extract_discount_percentage(text, mrp, offer_price)
+                    saving_amount = calculate_saving(mrp, offer_price)
+                    
+                    # Eligibility Rules
+                    pinterest_eligible = True
+                    pinterest_reject_reason = None
+                    
+                    if not self.config.get("pinterest_enabled"):
+                        pinterest_eligible = False
+                        pinterest_reject_reason = "pinterest_disabled"
+                    elif not photo_path or not os.path.exists(photo_path):
+                        pinterest_eligible = False
+                        pinterest_reject_reason = "no_image"
+                    elif not affiliate_url:
+                        pinterest_eligible = False
+                        pinterest_reject_reason = "missing_affiliate_link"
+                    elif discount_percentage < self.config.get("pinterest_min_discount", 30):
+                        pinterest_eligible = False
+                        pinterest_reject_reason = "low_discount"
+                    elif mrp is not None and offer_price is not None and saving_amount < self.config.get("pinterest_min_saving", 300):
+                        pinterest_eligible = False
+                        pinterest_reject_reason = "low_saving"
+                    elif mrp is not None and offer_price is not None and mrp <= offer_price:
+                        pinterest_eligible = False
+                        pinterest_reject_reason = "invalid_price"
+                    elif check_duplicate_deal(affiliate_url, product_title, offer_price, self.config.get("pinterest_duplicate_days", 7)):
+                        pinterest_eligible = False
+                        pinterest_reject_reason = "duplicate"
+                        
+                    # Store in SQLite database
+                    conn = sqlite3.connect(DB_PATH)
+                    cursor = conn.cursor()
+                    
+                    # If eligible, copy the image to persistent directory
+                    persistent_image_path = None
+                    if pinterest_eligible:
+                        os.makedirs(PINTEREST_MEDIA_DIR, exist_ok=True)
+                        _, ext = os.path.splitext(photo_path)
+                        dest_filename = f"pin_{int(datetime.datetime.now().timestamp())}_{os.path.basename(photo_path)}"
+                        dest_path = os.path.join(PINTEREST_MEDIA_DIR, dest_filename)
+                        shutil.copy2(photo_path, dest_path)
+                        persistent_image_path = dest_path
+                        logger.info(f"Pinterest: Copied image to persistent store: {persistent_image_path}")
+                    
+                    # Clean description for storage
+                    cleaned_desc = re.sub(r'<[^>]*>', '', text)
+                    cleaned_desc = cleaned_desc.replace('*', '').replace('_', '').replace('~', '').strip()
+                    cleaned_desc = cleaned_desc[:500]
+                    
+                    status = "pending" if pinterest_eligible else "rejected"
+                    failure_reason = pinterest_reject_reason if not pinterest_eligible else None
+                    
+                    # Save rejected deals as rejected with reason (or pending if eligible)
+                    if pinterest_reject_reason != "pinterest_disabled":
+                        cursor.execute("""
+                            INSERT INTO pinterest_deals (
+                                product_title, cleaned_description, original_text, image_path,
+                                original_url, affiliate_url, mrp, offer_price,
+                                discount_percentage, saving_amount, status, failure_reason
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            product_title, cleaned_desc, text, persistent_image_path,
+                            product_urls[0] if product_urls else None, affiliate_url, mrp, offer_price,
+                            discount_percentage, saving_amount, status, failure_reason
+                        ))
+                        conn.commit()
+                        
+                        if pinterest_eligible:
+                            logger.info(f"Pinterest pending deal created: {product_title}")
+                        else:
+                            logger.info(f"Pinterest rejected candidate saved: reason={pinterest_reject_reason}, title={product_title}")
+                    else:
+                        logger.info("Pinterest disabled, deal skipped for Pinterest queue.")
+                    conn.close()
+                except Exception as ex:
+                    logger.error(f"Error in Pinterest validation thread: {ex}", exc_info=True)
+            
+            # Start background validation task
+            asyncio.create_task(run_pinterest_validation())
+            # --- END PINTEREST ELIGIBILITY & DB WORKFLOW ---
+            
         except Exception as e:
             logger.error(f"Failed to queue deal: {e}")
             # Fallback: clean up temp file if queuing failed
@@ -879,6 +1192,153 @@ class DealForwarderService:
             
         self.is_running = False
         logger.info("Forwarding Service stopped successfully.")
+
+    async def post_approved_deal_to_pinterest(self, deal_id: int, custom_affiliate_url: str = None) -> tuple:
+        """
+        Publishes an approved deal to Pinterest using Pinterest API v5.
+        Verifies the daily posting limit, updates any edited affiliate link,
+        prepends the affiliate disclosure, and encodes/uploads the image.
+        Returns (success_status, detail_message).
+        """
+        access_token = self.config.get("pinterest_access_token")
+        board_id = self.config.get("pinterest_board_id")
+        
+        if not access_token or not board_id:
+            logger.error("Pinterest Approved Pin Failed: Pinterest Access Token or Board ID is missing.")
+            return False, "Pinterest Access Token or Board ID is missing."
+
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # 1. Fetch deal row
+        cursor.execute("SELECT * FROM pinterest_deals WHERE id = ?", (deal_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False, "Deal not found in database."
+
+        # 2. Check Daily Limit (Only posted pins today in local calendar day)
+        today_start = datetime.datetime.now().strftime('%Y-%m-%d 00:00:00')
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'posted' AND posted_at >= ?", (today_start,))
+        posted_today_count = cursor.fetchone()[0]
+        
+        daily_limit = self.config.get("pinterest_daily_limit", 5)
+        if posted_today_count >= daily_limit:
+            conn.close()
+            logger.warning(f"Pinterest: Daily posting limit reached ({posted_today_count}/{daily_limit}). Keeping deal in Pending.")
+            return False, "limit_reached"
+
+        # 3. Update affiliate link in database if edited by the user
+        affiliate_url = row["affiliate_url"]
+        if custom_affiliate_url and custom_affiliate_url.strip():
+            affiliate_url = custom_affiliate_url.strip()
+            cursor.execute("UPDATE pinterest_deals SET affiliate_url = ? WHERE id = ?", (affiliate_url, deal_id))
+            conn.commit()
+
+        # 4. Check image file
+        image_path = row["image_path"]
+        if not image_path or not os.path.exists(image_path):
+            conn.close()
+            logger.error(f"PinterestApprovedPinError: Persistent image file does not exist at {image_path}")
+            return False, "Image file not found on disk."
+
+        # 5. Base64 encode the image
+        try:
+            def _encode_image():
+                with open(image_path, "rb") as f:
+                    return base64.b64encode(f.read()).decode("utf-8")
+            base64_data = await asyncio.to_thread(_encode_image)
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to encode image: {str(e)}"
+
+        content_type = "image/jpeg"
+        if str(image_path).lower().endswith(".png"):
+            content_type = "image/png"
+        elif str(image_path).lower().endswith(".gif"):
+            content_type = "image/gif"
+
+        # 6. Format Pin properties (title & description)
+        title = row["product_title"] or "Amazing Affiliate Deal!"
+        # Prepend the required affiliate disclosure at the beginning of the Pin description
+        disclosure = "Affiliate link: इस लिंक से खरीदने पर मुझे commission मिल सकता है, आपको extra charge नहीं लगेगा.\n\n"
+        cleaned_desc = row["cleaned_description"] or ""
+        description = (disclosure + cleaned_desc)[:500]
+
+        # 7. Request payload
+        payload = {
+            "board_id": board_id.strip(),
+            "title": title[:100],
+            "description": description,
+            "media_source": {
+                "source_type": "image_base64",
+                "content_type": content_type,
+                "data": base64_data
+            }
+        }
+        
+        if affiliate_url:
+            payload["link"] = affiliate_url
+
+        headers = {
+            "Authorization": f"Bearer {access_token.strip()}",
+            "Content-Type": "application/json"
+        }
+
+        api_url = "https://api.pinterest.com/v5/pins"
+        
+        try:
+            logger.info(f"Approved Pin Trigger: Uploading Pin for deal {deal_id} to board {board_id}...")
+            response = await async_post(api_url, headers=headers, json=payload, timeout=25)
+            
+            if response.status_code in [200, 201]:
+                # Pin creation successful
+                now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                # Comply with Pinterest API Data Storage Policy Safety:
+                # Do NOT permanently store API-returned Pinterest data (such as pin ID) in our database.
+                cursor.execute("""
+                    UPDATE pinterest_deals 
+                    SET status = 'posted', posted_at = ?, failure_reason = NULL 
+                    WHERE id = ?
+                """, (now_str, deal_id))
+                conn.commit()
+                
+                self.stats["pinterest_success"] += 1
+                logger.info("Pinterest approved and posted successfully.")
+                conn.close()
+                return True, "posted_successfully"
+            else:
+                # Pin creation failed
+                err_text = response.text
+                try:
+                    err_json = response.json()
+                    err_message = err_json.get("message", err_text)
+                except:
+                    err_message = err_text
+                    
+                logger.error(f"Pinterest API Error: Status {response.status_code} - {err_message}")
+                
+                cursor.execute("""
+                    UPDATE pinterest_deals 
+                    SET status = 'failed', failure_reason = ? 
+                    WHERE id = ?
+                """, (err_message, deal_id))
+                conn.commit()
+                conn.close()
+                return False, err_message
+        except Exception as e:
+            err_message = str(e)
+            logger.error(f"Pinterest post exception: {err_message}")
+            cursor.execute("""
+                UPDATE pinterest_deals 
+                SET status = 'failed', failure_reason = ? 
+                WHERE id = ?
+            """, (err_message, deal_id))
+            conn.commit()
+            conn.close()
+            return False, err_message
+
  
 # =====================================================================
 # STANDALONE EXECUTION ENTRY

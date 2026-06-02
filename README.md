@@ -115,19 +115,33 @@ PB Hero Bot features a premium, comprehensive CLI maintenance utility (`update_a
 5. **Logs & Port Diagnostic:** Scans `deal_forwarder.log` for any runtime errors or connection failures, and verifies if the FastAPI Server is listening on Port 8000.
 6. **System Daemon Hot-Reload:** In Linux production environments, it automatically reloads systemd manager configurations and runs `sudo systemctl restart pbherobot.service` to apply changes instantly while verifying the service becomes fully `active`.
 
-### 🚀 How to Manually Update & Diagnose via Command Prompt
+### 🚀 How to Update your Existing Oracle Cloud VPS (or Linux VPS)
 
-Depending on your operating system, execute the manual launcher command in your terminal/Command Prompt:
+To fetch these new Pinterest updates and deploy them to your existing running Oracle Cloud VPS:
 
-#### Linux VPS Server (SSH Terminal)
-Navigate to `/opt/telegram-affiliate-forwarder` and run:
-```bash
-chmod +x update.sh
-./update.sh
-```
+1. Connect to your VPS server terminal via SSH:
+   ```bash
+   ssh ubuntu@<YOUR_VPS_PUBLIC_IP>
+   ```
+2. Navigate to the bot directory:
+   ```bash
+   cd /opt/telegram-affiliate-forwarder
+   ```
+3. Run the manual update script with sudo privileges:
+   ```bash
+   chmod +x update.sh
+   sudo ./update.sh
+   ```
+   *(Running with `sudo` is required to allow the script to restart the background daemon service).*
 
-#### Windows Development PC (Command Prompt)
-Navigate to your project directory and run:
+### What does the update script do?
+- **GitHub Sync**: Pulls the latest changes from your GitHub repository's `main` branch. Your local `.env` settings and Telethon active session files (`*.session`) are ignored by Git and will **never** be overwritten.
+- **Venv Audit**: Scans and installs any package upgrades from `requirements.txt` inside the virtual environment (`.venv`).
+- **Diagnostics**: Checks system RAM, disk spaces, and audits `deal_forwarder.log` for any runtime warnings.
+- **Daemon Restart**: Automatically hot-reloads `systemd` and restarts `pbherobot.service` so that the bot applies the updates instantly.
+
+### 💻 How to Update your Windows PC (Development)
+Navigate to your project folder in Command Prompt and run:
 ```cmd
 update.bat
 ```

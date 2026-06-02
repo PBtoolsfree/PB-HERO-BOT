@@ -182,9 +182,131 @@
         /* Info Card Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
             gap: 16px;
             margin-bottom: 32px;
+        }
+
+        .pinterest-safety-warning {
+            font-size: 12px;
+            color: var(--warning-color);
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
+            line-height: 1.4;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .pinterest-card-image {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .pinterest-deal-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        @media (max-width: 600px) {
+            .pinterest-deal-item {
+                flex-direction: column;
+            }
+            .pinterest-card-image {
+                width: 100%;
+                height: 180px;
+            }
+        }
+
+        .pinterest-deal-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .pinterest-deal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .pinterest-deal-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .pinterest-badge {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .pinterest-badge.discount {
+            color: var(--success-color);
+            border-color: rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .pinterest-badge.error-badge {
+            color: var(--error-color);
+            border-color: rgba(244, 63, 94, 0.3);
+            background: rgba(244, 63, 94, 0.05);
+        }
+
+        .pinterest-editable-url {
+            width: 100%;
+            background: rgba(6, 9, 19, 0.6) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            color: var(--text-main) !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 13px !important;
+            margin-top: 4px;
+        }
+
+        .pinterest-editable-url:focus {
+            border-color: var(--primary-accent) !important;
+            outline: none;
+        }
+
+        .pinterest-rejected-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+        }
+
+        .pinterest-rejected-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pinterest-rejected-item:last-child {
+            border-bottom: none;
         }
 
         .stat-card {
@@ -565,8 +687,10 @@
 
     <!-- Main Container Grid -->
     <main>
-        <!-- Config Section (Left Card) -->
-        <section class="glass-card">
+        <!-- Left Column Wrapper -->
+        <div style="display: flex; flex-direction: column; gap: 32px;">
+            <!-- Config Section (Left Card) -->
+            <section class="glass-card">
             <div class="controls-header">
                 <h2>Configuration Settings</h2>
                 <button type="button" class="btn btn-primary" onclick="saveConfig()">Save Settings</button>
@@ -578,6 +702,7 @@
                 <button type="button" class="tab-btn" onclick="switchTab('tab-tg-bot')">Telegram Bot</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-targets')">Source Channels</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-discord')">Discord Integration</button>
+                <button type="button" class="tab-btn" onclick="switchTab('tab-pinterest')">Pinterest Integration</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-affiliate-api')">Affiliate API</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-security')">Console Security</button>
             </div>
@@ -690,6 +815,56 @@
                     </div>
                 </div>
 
+                <!-- Tab: Pinterest Integration -->
+                <div id="tab-pinterest" class="tab-pane">
+                    <div class="form-group">
+                        <label for="PINTEREST_ENABLED">Enable Pinterest Integration</label>
+                        <select id="PINTEREST_ENABLED" onchange="togglePinterestFields()" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="false">Disabled</option>
+                            <option value="true">Enabled</option>
+                        </select>
+                        <div class="form-note">Toggle saving eligible deals to your Pinterest Pending Queue. Telegram/Discord posting remains automatic.</div>
+                    </div>
+                    
+                    <div id="pinterest-fields" style="display:none;">
+                        <div class="form-group">
+                            <label for="PINTEREST_ACCESS_TOKEN">Pinterest Access Token</label>
+                            <input type="password" id="PINTEREST_ACCESS_TOKEN" placeholder="pina_...">
+                            <div class="form-note">Your Pinterest developer API Access Token (scopes: <code>pins:write, boards:read</code>). Hidden after saving.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="PINTEREST_BOARD_ID">Pinterest Board ID</label>
+                            <input type="text" id="PINTEREST_BOARD_ID" placeholder="e.g. 1205164287352377402">
+                            <div class="form-note">The board ID where pins should be posted. Retrieve this from your Board URL.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="PINTEREST_MIN_DISCOUNT">Minimum Discount (%)</label>
+                            <input type="number" id="PINTEREST_MIN_DISCOUNT" min="0" max="100" placeholder="e.g. 30">
+                            <div class="form-note">Minimum discount percentage a deal must have to be stored in Pending. Default: 30%.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="PINTEREST_MIN_SAVING">Minimum Savings (₹)</label>
+                            <input type="number" id="PINTEREST_MIN_SAVING" min="0" placeholder="e.g. 300">
+                            <div class="form-note">Minimum absolute saving amount (MRP - Offer Price) required. Default: ₹300.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="PINTEREST_DAILY_LIMIT">Daily Posting Limit</label>
+                            <input type="number" id="PINTEREST_DAILY_LIMIT" min="1" placeholder="e.g. 5">
+                            <div class="form-note">Maximum number of approved Pins to publish to Pinterest within a calendar day. Checked at button-click time. Default: 5.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="PINTEREST_DUPLICATE_DAYS">Duplicate Protection Days</label>
+                            <input type="number" id="PINTEREST_DUPLICATE_DAYS" min="1" placeholder="e.g. 7">
+                            <div class="form-note">Number of days to block duplicate URL or Title + Price submissions. Default: 7 days.</div>
+                        </div>
+                        
+                        <div class="pinterest-safety-warning" style="margin-top: 24px;">
+                            <span>⚠️</span>
+                            <span>Affiliate links are validated during real approved Pin posting. If Pinterest rejects a link, the deal will move to Failed Deals with the error reason. You can update the link and manually retry.</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tab: Security & Logout settings -->
                 <div id="tab-security" class="tab-pane">
                     <div class="form-group">
@@ -705,7 +880,60 @@
             </form>
         </section>
 
-        <!-- Bot Operational Controls Section (Right Columns) -->
+        <!-- Pinterest Pending & Failed Deals Queue Cards -->
+        <div id="pinterest-queue-section" style="display: none; flex-direction: column; gap: 32px;">
+            <!-- Pending Queue Card -->
+            <div class="glass-card">
+                <div class="controls-header">
+                    <h2>Pinterest Pending Deals (<span id="pinterest-pending-count">0</span>)</h2>
+                    <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;" onclick="fetchPinterestPending()">Refresh Queue</button>
+                </div>
+                
+                <div class="pinterest-safety-warning">
+                    <span>⚠️</span>
+                    <span>Only approve clean product images without another channel watermark, wrong price text, or copyrighted promotional branding.</span>
+                </div>
+                
+                <div id="pinterest-pending-list" style="display: flex; flex-direction: column; gap: 16px;">
+                    <p class="text-muted" style="text-align: center; padding: 20px;">No pending Pinterest deals. Eligible deals from Telegram will appear here.</p>
+                </div>
+            </div>
+
+            <!-- Failed Queue Card -->
+            <div class="glass-card">
+                <div class="controls-header">
+                    <h2>Pinterest Failed Deals (<span id="pinterest-failed-count">0</span>)</h2>
+                    <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;" onclick="fetchPinterestFailed()">Refresh Failed</button>
+                </div>
+                <div id="pinterest-failed-list" style="display: flex; flex-direction: column; gap: 16px;">
+                    <p class="text-muted" style="text-align: center; padding: 20px;">No failed Pinterest deals.</p>
+                </div>
+            </div>
+
+            <!-- Rejected Log Card -->
+            <div class="glass-card">
+                <div class="controls-header">
+                    <h2>Pinterest Rejected Candidates</h2>
+                    <button id="btn-toggle-rejected" type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;" onclick="toggleRejectedView()">Show Rejections</button>
+                </div>
+                
+                <!-- Rejected stats breakdown -->
+                <div class="pinterest-deal-meta" style="margin-bottom: 12px; gap: 8px;">
+                    <span class="pinterest-badge discount">Low Discount: <b id="reject-stat-discount">0</b></span>
+                    <span class="pinterest-badge error-badge">No Image: <b id="reject-stat-image">0</b></span>
+                    <span class="pinterest-badge">Duplicate: <b id="reject-stat-duplicate">0</b></span>
+                </div>
+
+                <div id="pinterest-rejected-container" style="display: none; margin-top: 16px;">
+                    <div id="pinterest-rejected-list" class="pinterest-rejected-list">
+                        <p class="text-muted" style="text-align: center; padding: 10px;">No rejected deals logged.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bot Operational Controls Section (Right Columns) -->
         <section style="display: flex; flex-direction: column; gap: 32px;">
             <!-- Stats & Start/Stop -->
             <div class="glass-card">
@@ -726,6 +954,18 @@
                     <div class="stat-card">
                         <div class="stat-label">Discord Sent</div>
                         <div id="stat-discord" class="stat-val font-success">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Pin Pending</div>
+                        <div id="stat-pinterest-pending" class="stat-val font-success">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Pin Posted</div>
+                        <div id="stat-pinterest-posted" class="stat-val font-success">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Pin Failed</div>
+                        <div id="stat-pinterest-failed" class="stat-val" style="color: var(--error-color);">0</div>
                     </div>
                 </div>
 
@@ -847,7 +1087,7 @@
             document.getElementById(tabId).classList.add('active');
             
             // Make button active
-            const btnIndex = ['tab-tg-api', 'tab-tg-bot', 'tab-targets', 'tab-discord', 'tab-affiliate-api', 'tab-security'].indexOf(tabId);
+            const btnIndex = ['tab-tg-api', 'tab-tg-bot', 'tab-targets', 'tab-discord', 'tab-pinterest', 'tab-affiliate-api', 'tab-security'].indexOf(tabId);
             if (btnIndex !== -1) {
                 document.querySelectorAll('.tab-btn')[btnIndex].classList.add('active');
             }
@@ -883,6 +1123,17 @@
             }
         }
 
+        // Toggle Pinterest fields in dashboard settings
+        function togglePinterestFields() {
+            const enabled = document.getElementById('PINTEREST_ENABLED').value;
+            const fields = document.getElementById('pinterest-fields');
+            if (enabled === 'true') {
+                fields.style.display = 'block';
+            } else {
+                fields.style.display = 'none';
+            }
+        }
+
         // Validate credentials and show warning badge dynamically
         function validateFieldsAndShowBadges() {
             const apiIdVal = document.getElementById('TELEGRAM_API_ID').value.trim();
@@ -914,6 +1165,7 @@
                     // Handle dynamic field toggle
                     toggleAffiliateFields();
                     toggleDiscordFields();
+                    togglePinterestFields();
                 }
             } catch (err) {
                 console.error("Failed to load configs", err);
@@ -928,7 +1180,10 @@
                 'MY_TELEGRAM_CHANNEL', 'TARGET_CHANNELS', 'WHITELIST_CHANNELS', 'DISCORD_MODE', 'DISCORD_WEBHOOK_URL',
                 'DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_IDS',
                 'EARNKARO_PARTNER_ID', 'AFFILIATE_PLATFORM', 'CUELINKS_API_KEY',
-                'AMAZON_ASSOCIATE_TAG', 'DELAY_INTERVAL', 'DASHBOARD_PASSWORD'
+                'AMAZON_ASSOCIATE_TAG', 'DELAY_INTERVAL', 'DASHBOARD_PASSWORD',
+                'PINTEREST_ENABLED', 'PINTEREST_ACCESS_TOKEN', 'PINTEREST_BOARD_ID',
+                'PINTEREST_MIN_DISCOUNT', 'PINTEREST_MIN_SAVING', 'PINTEREST_DAILY_LIMIT',
+                'PINTEREST_DUPLICATE_DAYS'
             ];
             const payload = {};
             keys.forEach(k => {
@@ -948,6 +1203,7 @@
                 if (response.ok) {
                     showToast("Configuration settings successfully updated!");
                     validateFieldsAndShowBadges();
+                    togglePinterestFields();
                 } else {
                     const errDetail = await response.text();
                     showToast("Error updating settings: " + errDetail, true);
@@ -1039,6 +1295,14 @@
                     document.getElementById('stat-processed').innerText = statusData.stats.processed;
                     document.getElementById('stat-tg').innerText = statusData.stats.telegram_success;
                     document.getElementById('stat-discord').innerText = statusData.stats.discord_success;
+                    document.getElementById('stat-pinterest-pending').innerText = statusData.stats.pinterest_pending || 0;
+                    document.getElementById('stat-pinterest-posted').innerText = statusData.stats.pinterest_posted || 0;
+                    document.getElementById('stat-pinterest-failed').innerText = statusData.stats.pinterest_failed || 0;
+                    
+                    // Rejection breakdown stats
+                    document.getElementById('reject-stat-discount').innerText = statusData.stats.pinterest_skipped_low_discount || 0;
+                    document.getElementById('reject-stat-image').innerText = statusData.stats.pinterest_skipped_no_image || 0;
+                    document.getElementById('reject-stat-duplicate').innerText = statusData.stats.pinterest_skipped_duplicate || 0;
                     
                     // Enable/Disable control buttons
                     const btnStart = document.getElementById('btn-start');
@@ -1059,6 +1323,20 @@
                     // Open Web Auth Modal if needed
                     if (state === 'authenticating') {
                         openAuthModal();
+                    }
+                    
+                    // Dynamically toggle Pinterest queue section visibility
+                    const pEnabled = document.getElementById('PINTEREST_ENABLED').value;
+                    const qSection = document.getElementById('pinterest-queue-section');
+                    if (pEnabled === 'true') {
+                        if (qSection.style.display === 'none') {
+                            qSection.style.display = 'flex';
+                            fetchPinterestPending();
+                            fetchPinterestFailed();
+                            fetchPinterestRejected();
+                        }
+                    } else {
+                        qSection.style.display = 'none';
                     }
                 }
             } catch (err) {
@@ -1164,6 +1442,267 @@
             } catch (err) {
                 showToast("Failed to verify authentication code.", true);
             }
+        }
+
+        let rejectedVisible = false;
+
+        function toggleRejectedView() {
+            rejectedVisible = !rejectedVisible;
+            const container = document.getElementById('pinterest-rejected-container');
+            const btn = document.getElementById('btn-toggle-rejected');
+            if (rejectedVisible) {
+                container.style.display = 'block';
+                btn.innerText = 'Hide Rejections';
+                fetchPinterestRejected();
+            } else {
+                container.style.display = 'none';
+                btn.innerText = 'Show Rejections';
+            }
+        }
+
+        async function fetchPinterestPending() {
+            try {
+                const response = await fetch('/api/pinterest/pending');
+                if (response.ok) {
+                    const deals = await response.json();
+                    document.getElementById('pinterest-pending-count').innerText = deals.length;
+                    const container = document.getElementById('pinterest-pending-list');
+                    container.innerHTML = '';
+                    
+                    if (deals.length === 0) {
+                        container.innerHTML = '<p class="text-muted" style="text-align: center; padding: 20px;">No pending Pinterest deals. Eligible deals from Telegram will appear here.</p>';
+                        return;
+                    }
+                    
+                    deals.forEach(deal => {
+                        const filename = deal.image_path ? deal.image_path.split(/[\\/]/).pop() : '';
+                        const imageUrl = filename ? `/api/media/${filename}` : '';
+                        
+                        const item = document.createElement('div');
+                        item.className = 'pinterest-deal-item';
+                        item.innerHTML = `
+                            ${imageUrl ? `<img src="${imageUrl}" class="pinterest-card-image" alt="Product Image">` : '<div class="pinterest-card-image" style="background:#111; display:flex; align-items:center; justify-content:center; color:var(--text-muted);">No Image</div>'}
+                            <div class="pinterest-deal-content">
+                                <div class="pinterest-deal-title">${escapeHTMLString(deal.product_title)}</div>
+                                <div class="pinterest-deal-meta">
+                                    <span class="pinterest-badge discount">${deal.discount_percentage}% OFF</span>
+                                    ${deal.mrp ? `<span class="pinterest-badge">MRP: ₹${deal.mrp}</span>` : ''}
+                                    ${deal.offer_price ? `<span class="pinterest-badge">Deal Price: ₹${deal.offer_price}</span>` : ''}
+                                    ${deal.saving_amount ? `<span class="pinterest-badge">Saving: ₹${deal.saving_amount}</span>` : ''}
+                                </div>
+                                <div style="margin-top: 6px;">
+                                    <label style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Affiliate URL (Editable)</label>
+                                    <input type="text" id="aff-url-pending-${deal.id}" class="pinterest-editable-url" value="${escapeHTMLString(deal.affiliate_url || '')}">
+                                </div>
+                                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                    <button type="button" class="btn btn-success" style="padding: 8px 16px; font-size: 12px;" onclick="postPinterestDeal(${deal.id})">Post to Pinterest</button>
+                                    <button type="button" class="btn btn-secondary" style="padding: 8px 16px; font-size: 12px; border-color: var(--error-color); color: var(--error-color);" onclick="skipPinterestDeal(${deal.id})">Skip</button>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(item);
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to fetch pending deals", err);
+            }
+        }
+
+        async function fetchPinterestFailed() {
+            try {
+                const response = await fetch('/api/pinterest/failed');
+                if (response.ok) {
+                    const deals = await response.json();
+                    document.getElementById('pinterest-failed-count').innerText = deals.length;
+                    const container = document.getElementById('pinterest-failed-list');
+                    container.innerHTML = '';
+                    
+                    if (deals.length === 0) {
+                        container.innerHTML = '<p class="text-muted" style="text-align: center; padding: 20px;">No failed Pinterest deals.</p>';
+                        return;
+                    }
+                    
+                    deals.forEach(deal => {
+                        const filename = deal.image_path ? deal.image_path.split(/[\\/]/).pop() : '';
+                        const imageUrl = filename ? `/api/media/${filename}` : '';
+                        
+                        const item = document.createElement('div');
+                        item.className = 'pinterest-deal-item';
+                        item.innerHTML = `
+                            ${imageUrl ? `<img src="${imageUrl}" class="pinterest-card-image" alt="Product Image">` : '<div class="pinterest-card-image" style="background:#111; display:flex; align-items:center; justify-content:center; color:var(--text-muted);">No Image</div>'}
+                            <div class="pinterest-deal-content">
+                                <div class="pinterest-deal-title">${escapeHTMLString(deal.product_title)}</div>
+                                <div class="pinterest-deal-meta">
+                                    <span class="pinterest-badge error-badge" style="white-space: normal; word-break: break-word; max-width: 100%;">Error: ${escapeHTMLString(deal.failure_reason || 'Unknown error')}</span>
+                                    <span class="pinterest-badge discount">${deal.discount_percentage}% OFF</span>
+                                    ${deal.offer_price ? `<span class="pinterest-badge">Price: ₹${deal.offer_price}</span>` : ''}
+                                </div>
+                                <div style="margin-top: 6px;">
+                                    <label style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Affiliate URL (Editable)</label>
+                                    <input type="text" id="aff-url-failed-${deal.id}" class="pinterest-editable-url" value="${escapeHTMLString(deal.affiliate_url || '')}">
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+                                    <button type="button" class="btn btn-success" style="padding: 8px 16px; font-size: 12px;" onclick="retryPinterestDeal(${deal.id})">Retry Posting</button>
+                                    <button type="button" class="btn btn-primary" style="padding: 8px 16px; font-size: 12px;" onclick="movePinterestDealToPending(${deal.id})">Move Back to Pending</button>
+                                    <button type="button" class="btn btn-secondary" style="padding: 8px 16px; font-size: 12px; border-color: var(--error-color); color: var(--error-color);" onclick="skipPinterestDeal(${deal.id})">Skip</button>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(item);
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to fetch failed deals", err);
+            }
+        }
+
+        async function fetchPinterestRejected() {
+            try {
+                const response = await fetch('/api/pinterest/rejected');
+                if (response.ok) {
+                    const deals = await response.json();
+                    const container = document.getElementById('pinterest-rejected-list');
+                    container.innerHTML = '';
+                    
+                    if (deals.length === 0) {
+                        container.innerHTML = '<p class="text-muted" style="text-align: center; padding: 10px; font-size: 12px;">No rejected deals logged.</p>';
+                        return;
+                    }
+                    
+                    deals.forEach(deal => {
+                        const item = document.createElement('div');
+                        item.className = 'pinterest-rejected-item';
+                        item.innerHTML = `
+                            <span style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 60%;">${escapeHTMLString(deal.product_title)}</span>
+                            <span class="pinterest-badge error-badge" style="font-size:10px;">${escapeHTMLString(deal.failure_reason || 'Rejected')}</span>
+                        `;
+                        container.appendChild(item);
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to fetch rejected deals", err);
+            }
+        }
+
+        function escapeHTMLString(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Post approved Pin to Pinterest
+        async function postPinterestDeal(dealId) {
+            const confirmed = confirm("Publish this approved affiliate deal to Pinterest?");
+            if (!confirmed) return;
+            
+            const affUrlInput = document.getElementById(`aff-url-pending-${dealId}`);
+            const affUrl = affUrlInput ? affUrlInput.value.trim() : '';
+
+            try {
+                showToast("Posting approved deal to Pinterest...");
+                const response = await fetch(`/api/pinterest/post/${dealId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ affiliate_url: affUrl })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    showToast("Deal successfully posted to Pinterest!");
+                    fetchPinterestPending();
+                    pollBotStatus();
+                } else {
+                    if (data.detail && data.detail.includes("limit_reached") || data.message && data.message.includes("limit_reached")) {
+                        showToast("Today's Pinterest posting limit has been reached. Keeping in Pending.", true);
+                        alert("Today's Pinterest posting limit has been reached. This deal is safely kept in Pending for later posting.");
+                    } else {
+                        showToast("Error: " + (data.detail || data.message || "Failed to post"), true);
+                    }
+                    fetchPinterestPending();
+                    fetchPinterestFailed();
+                    pollBotStatus();
+                }
+            } catch (err) {
+                showToast("Request failed to reach the server.", true);
+            }
+        }
+
+        // Retry posting a failed deal
+        async function retryPinterestDeal(dealId) {
+            const confirmed = confirm("Retry publishing this failed deal to Pinterest?");
+            if (!confirmed) return;
+            
+            const affUrlInput = document.getElementById(`aff-url-failed-${dealId}`);
+            const affUrl = affUrlInput ? affUrlInput.value.trim() : '';
+
+            try {
+                showToast("Retrying Pinterest post...");
+                const response = await fetch(`/api/pinterest/retry/${dealId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ affiliate_url: affUrl })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    showToast("Deal successfully retried and posted!");
+                    fetchPinterestFailed();
+                    pollBotStatus();
+                } else {
+                    if (data.detail && data.detail.includes("limit_reached") || data.message && data.message.includes("limit_reached")) {
+                        showToast("Today's Pinterest posting limit has been reached. Keeping in Pending.", true);
+                        alert("Today's Pinterest posting limit has been reached. This deal is safely kept in Pending for later posting.");
+                    } else {
+                        showToast("Error: " + (data.detail || data.message || "Failed to retry"), true);
+                    }
+                    fetchPinterestFailed();
+                    pollBotStatus();
+                }
+            } catch (err) {
+                showToast("Request failed to reach the server.", true);
+            }
+        }
+
+        // Skip Pinterest Deal
+        async function skipPinterestDeal(dealId) {
+            const confirmed = confirm("Skip this Pinterest deal and clean up its local image?");
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch(`/api/pinterest/skip/${dealId}`, { method: 'POST' });
+                if (response.ok) {
+                    showToast("Deal skipped and media deleted.");
+                    fetchPinterestPending();
+                    fetchPinterestFailed();
+                    pollBotStatus();
+                } else {
+                    showToast("Failed to skip deal.", true);
+                }
+            } catch (err) {
+                showToast("Request failed.", true);
+            }
+        }
+
+        // Move Failed Deal back to Pending
+        async function movePinterestDealToPending(dealId) {
+            try {
+                const response = await fetch(`/api/pinterest/move-to-pending/${dealId}`, { method: 'POST' });
+                if (response.ok) {
+                    showToast("Deal moved back to Pending list.");
+                    fetchPinterestPending();
+                    fetchPinterestFailed();
+                    pollBotStatus();
+                } else {
+                    showToast("Failed to move deal.", true);
+                }
+            } catch (err) {
+                showToast("Request failed.", true);
+            }
+        }
         }
     </script>
 </body>

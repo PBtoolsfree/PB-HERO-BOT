@@ -29,3 +29,7 @@ temp_media/
 .idea/
 .vscode/
 .DS_Store
+
+# Pinterest Local DB & persistent media
+pinterest_deals.db
+pinterest_media/

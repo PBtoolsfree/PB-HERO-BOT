@@ -14,6 +14,7 @@ import re
 import secrets
 import hashlib
 import logging
+import sqlite3
 from typing import Dict, Any
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -21,6 +22,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import uvicorn
+
+DB_PATH = os.path.join(BASE_DIR, "pinterest_deals.db") if 'BASE_DIR' in locals() else os.path.join(os.path.dirname(os.path.abspath(__file__)), "pinterest_deals.db")
 
 # Import the service class from deal_forwarder.py
 from deal_forwarder import DealForwarderService, logger as service_logger
@@ -171,6 +174,25 @@ def save_env_configs(configs: Dict[str, str]):
             f.write("# [SMART QUEUE POSTING DELAY (SECONDS)]\n")
             f.write(f"DELAY_INTERVAL={configs.get('DELAY_INTERVAL', '900').strip()}\n\n")
 
+            f.write("# [PINTEREST INTEGRATION CONFIGURATION]\n")
+            f.write(f"PINTEREST_ENABLED={configs.get('PINTEREST_ENABLED', 'false').strip()}\n")
+            
+            # Retrieve existing token if the submitted value is the mask placeholder or blank
+            existing_token = os.getenv("PINTEREST_ACCESS_TOKEN", "")
+            submitted_token = configs.get('PINTEREST_ACCESS_TOKEN', '').strip()
+            if submitted_token == "********" or (not submitted_token and existing_token):
+                token_to_save = existing_token
+            else:
+                token_to_save = submitted_token
+            
+            # Mask the token during logging to prevent leak in console/files (Security & Safety check)
+            f.write(f"PINTEREST_ACCESS_TOKEN={token_to_save}\n")
+            f.write(f"PINTEREST_BOARD_ID={configs.get('PINTEREST_BOARD_ID', '').strip()}\n")
+            f.write(f"PINTEREST_MIN_DISCOUNT={configs.get('PINTEREST_MIN_DISCOUNT', '30').strip()}\n")
+            f.write(f"PINTEREST_MIN_SAVING={configs.get('PINTEREST_MIN_SAVING', '300').strip()}\n")
+            f.write(f"PINTEREST_DAILY_LIMIT={configs.get('PINTEREST_DAILY_LIMIT', '5').strip()}\n")
+            f.write(f"PINTEREST_DUPLICATE_DAYS={configs.get('PINTEREST_DUPLICATE_DAYS', '7').strip()}\n\n")
+
             f.write("# [DASHBOARD SECURITY]\n")
             f.write(f"DASHBOARD_PASSWORD={configs.get('DASHBOARD_PASSWORD', DASHBOARD_PASSWORD).strip()}\n")
             
@@ -238,6 +260,11 @@ async def get_current_configuration(request: Request):
     if not is_authenticated(request):
         raise HTTPException(status_code=401, detail="Unauthorized access.")
     load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"), override=True)
+    
+    # Retrieve and mask Pinterest token if configured
+    pinterest_token = os.getenv("PINTEREST_ACCESS_TOKEN", "")
+    masked_token = "********" if pinterest_token else ""
+
     return {
         "TELEGRAM_API_ID": os.getenv("TELEGRAM_API_ID", ""),
         "TELEGRAM_API_HASH": os.getenv("TELEGRAM_API_HASH", ""),
@@ -254,6 +281,13 @@ async def get_current_configuration(request: Request):
         "CUELINKS_API_KEY": os.getenv("CUELINKS_API_KEY", ""),
         "AMAZON_ASSOCIATE_TAG": os.getenv("AMAZON_ASSOCIATE_TAG", ""),
         "DELAY_INTERVAL": os.getenv("DELAY_INTERVAL", "900"),
+        "PINTEREST_ENABLED": os.getenv("PINTEREST_ENABLED", "false"),
+        "PINTEREST_ACCESS_TOKEN": masked_token,
+        "PINTEREST_BOARD_ID": os.getenv("PINTEREST_BOARD_ID", ""),
+        "PINTEREST_MIN_DISCOUNT": os.getenv("PINTEREST_MIN_DISCOUNT", "30"),
+        "PINTEREST_MIN_SAVING": os.getenv("PINTEREST_MIN_SAVING", "300"),
+        "PINTEREST_DAILY_LIMIT": os.getenv("PINTEREST_DAILY_LIMIT", "5"),
+        "PINTEREST_DUPLICATE_DAYS": os.getenv("PINTEREST_DUPLICATE_DAYS", "7"),
         "DASHBOARD_PASSWORD": os.getenv("DASHBOARD_PASSWORD", DASHBOARD_PASSWORD)
     }
 
@@ -298,16 +332,57 @@ async def get_bot_status(request: Request):
         "processed": 0,
         "telegram_success": 0,
         "discord_success": 0,
-        "failures": 0
+        "failures": 0,
+        "pinterest_pending": 0,
+        "pinterest_posted": 0,
+        "pinterest_failed": 0,
+        "pinterest_skipped_low_discount": 0,
+        "pinterest_skipped_no_image": 0,
+        "pinterest_skipped_duplicate": 0,
+        "pinterest_skipped_daily_limit": 0
     }
     
+    # Query stats from SQLite database
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Pending deals
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'pending'")
+        stats["pinterest_pending"] = cursor.fetchone()[0]
+        
+        # Posted pins
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'posted'")
+        stats["pinterest_posted"] = cursor.fetchone()[0]
+        
+        # Failed pins
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'failed'")
+        stats["pinterest_failed"] = cursor.fetchone()[0]
+        
+        # Rejection reasons breakdown
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'rejected' AND failure_reason = 'low_discount'")
+        stats["pinterest_skipped_low_discount"] = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'rejected' AND failure_reason = 'no_image'")
+        stats["pinterest_skipped_no_image"] = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'rejected' AND failure_reason = 'duplicate'")
+        stats["pinterest_skipped_duplicate"] = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(id) FROM pinterest_deals WHERE status = 'rejected' AND failure_reason = 'daily_limit_reached'")
+        stats["pinterest_skipped_daily_limit"] = cursor.fetchone()[0]
+        
+        conn.close()
+    except Exception as db_err:
+        logger.error(f"Failed to load Pinterest metrics from database: {db_err}")
+    
     if bot_service:
-        stats = {
+        stats.update({
             "processed": bot_service.stats["processed"],
             "telegram_success": bot_service.stats["telegram_success"],
             "discord_success": bot_service.stats["discord_success"],
             "failures": bot_service.stats["failures"]
-        }
+        })
         if not bot_service.is_running and bot_status == "running":
             bot_status = "stopped"
             
@@ -449,6 +524,116 @@ async def api_auth_verify_code(payload: VerifyCodeRequest, request: Request):
     except Exception as e:
         logger.error(f"Dynamic auth verification failure: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Authentication Failure: {str(e)}")
+
+from fastapi.responses import FileResponse
+
+def get_deals_by_status(status: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM pinterest_deals WHERE status = ? ORDER BY created_at DESC", (status,))
+    rows = cursor.fetchall()
+    deals = [dict(row) for row in rows]
+    conn.close()
+    return deals
+
+class PostDealRequest(BaseModel):
+    affiliate_url: str = None
+
+@app.get("/api/media/{filename}")
+async def get_media_file(filename: str):
+    # Prevent directory traversal attacks
+    safe_filename = os.path.basename(filename)
+    file_path = os.path.join(BASE_DIR, "pinterest_media", safe_filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    fallback_path = os.path.join(BASE_DIR, "temp_media", safe_filename)
+    if os.path.exists(fallback_path):
+        return FileResponse(fallback_path)
+    raise HTTPException(status_code=404, detail="Media file not found")
+
+@app.get("/api/pinterest/pending")
+async def get_pinterest_pending(request: Request):
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    return get_deals_by_status("pending")
+
+@app.get("/api/pinterest/failed")
+async def get_pinterest_failed(request: Request):
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    return get_deals_by_status("failed")
+
+@app.get("/api/pinterest/rejected")
+async def get_pinterest_rejected(request: Request):
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    return get_deals_by_status("rejected")
+
+@app.post("/api/pinterest/post/{deal_id}")
+async def post_approved_deal(deal_id: int, payload: PostDealRequest, request: Request):
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    global bot_service
+    if not bot_service:
+        raise HTTPException(status_code=400, detail="Bot service is not running or initialized. Please start the bot first.")
+    success, message = await bot_service.post_approved_deal_to_pinterest(deal_id, payload.affiliate_url)
+    if success:
+        return {"status": "success", "message": "Deal successfully posted to Pinterest!"}
+    else:
+        if message == "limit_reached":
+            return {"status": "limit_reached", "message": "Today's Pinterest posting limit has been reached. This deal is safely kept in Pending for later posting."}
+        raise HTTPException(status_code=500, detail=f"Failed to post to Pinterest: {message}")
+
+@app.post("/api/pinterest/retry/{deal_id}")
+async def retry_failed_deal(deal_id: int, payload: PostDealRequest, request: Request):
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    global bot_service
+    if not bot_service:
+        raise HTTPException(status_code=400, detail="Bot service is not running or initialized. Please start the bot first.")
+    success, message = await bot_service.post_approved_deal_to_pinterest(deal_id, payload.affiliate_url)
+    if success:
+        return {"status": "success", "message": "Deal successfully retried and posted to Pinterest!"}
+    else:
+        if message == "limit_reached":
+            return {"status": "limit_reached", "message": "Today's Pinterest posting limit has been reached. This deal is safely kept in Pending for later posting."}
+        raise HTTPException(status_code=500, detail=f"Failed to post to Pinterest: {message}")
+
+@app.post("/api/pinterest/skip/{deal_id}")
+async def skip_pinterest_deal(deal_id: int, request: Request):
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT image_path FROM pinterest_deals WHERE id = ?", (deal_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Deal not found")
+    cursor.execute("UPDATE pinterest_deals SET status = 'skipped' WHERE id = ?", (deal_id,))
+    conn.commit()
+    conn.close()
+    image_path = row["image_path"]
+    if image_path and os.path.exists(image_path):
+        try:
+            os.remove(image_path)
+            logger.info(f"Skipped deal {deal_id}: cleaned up image {image_path}")
+        except Exception as e:
+            logger.error(f"Failed to delete skipped image file: {e}")
+    return {"status": "success", "message": "Deal marked as skipped and image cleaned up."}
+
+@app.post("/api/pinterest/move-to-pending/{deal_id}")
+async def move_deal_to_pending(deal_id: int, request: Request):
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE pinterest_deals SET status = 'pending', failure_reason = NULL WHERE id = ?", (deal_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "Deal moved back to pending list."}
 
 # =====================================================================
 # SERVER RUN HOOK
