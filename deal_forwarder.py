@@ -39,6 +39,9 @@ import sqlite3
 import shutil
 import base64
 
+# Absolute base directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Database path
 DB_PATH = os.path.join(BASE_DIR, "pinterest_deals.db")
 PINTEREST_MEDIA_DIR = os.path.join(BASE_DIR, "pinterest_media")
