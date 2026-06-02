@@ -127,11 +127,12 @@ To fetch these new Pinterest updates and deploy them to your existing running Or
    ```bash
    cd /opt/telegram-affiliate-forwarder
    ```
-3. Run the manual update script with sudo privileges:
+3. Run the manual update script:
    ```bash
-   chmod +x update.sh
+   sudo chmod +x update.sh
    sudo ./update.sh
    ```
+   *(Alternatively, you can run `sudo bash update.sh` directly without modifying permissions).*
    *(Running with `sudo` is required to allow the script to restart the background daemon service).*
 
 ### What does the update script do?
