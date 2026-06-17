@@ -26,10 +26,8 @@ import socket
 
 # Force IPv4 to prevent "Network Unreachable" errors on Oracle Cloud / IPv6 instances
 old_getaddrinfo = socket.getaddrinfo
-def new_getaddrinfo(*args, **kwargs):
-    if len(args) >= 1:
-        kwargs['family'] = socket.AF_INET
-    return old_getaddrinfo(*args, **kwargs)
+def new_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return old_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
 socket.getaddrinfo = new_getaddrinfo
 
 DB_PATH = os.path.join(BASE_DIR, "pinterest_deals.db") if 'BASE_DIR' in locals() else os.path.join(os.path.dirname(os.path.abspath(__file__)), "pinterest_deals.db")
