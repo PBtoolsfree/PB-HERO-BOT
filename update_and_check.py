@@ -44,7 +44,7 @@ def print_banner():
 """
     print(banner)
 
-def run_command(command: List[str], description: str) -> bool:
+def run_command(command: List[str], description: str, timeout: int = 60) -> bool:
     """Helper to run system commands and handle outputs nicely."""
     print(f"{YELLOW}[→] {description}...{NC}")
     try:
@@ -54,7 +54,7 @@ def run_command(command: List[str], description: str) -> bool:
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE, 
             text=True,
-            timeout=60
+            timeout=timeout
         )
         if result.returncode == 0:
             print(f"{GREEN}[SUCCESS] {description} completed successfully.{NC}")
@@ -67,7 +67,7 @@ def run_command(command: List[str], description: str) -> bool:
                 print(f"    {RED}Error output: {result.stderr.strip()}{NC}")
             return False
     except subprocess.TimeoutExpired:
-        print(f"{RED}[ERROR] {description} timed out after 60 seconds!{NC}")
+        print(f"{RED}[ERROR] {description} timed out after {timeout} seconds!{NC}")
         return False
     except Exception as e:
         print(f"{RED}[ERROR] Unexpected issue while running '{' '.join(command)}': {e}{NC}")
@@ -259,7 +259,7 @@ def restart_daemon_service() -> bool:
     
     # Attempting to restart service
     reloading = run_command(["sudo", "systemctl", "daemon-reload"], "Reloading systemd manager configuration")
-    restarting = run_command(["sudo", "systemctl", "restart", "pbherobot.service"], "Restarting PB Hero Bot service daemon (pbherobot.service)")
+    restarting = run_command(["sudo", "systemctl", "restart", "pbherobot.service"], "Restarting PB Hero Bot service daemon (pbherobot.service)", timeout=120)
     
     if restarting:
         # Check active status

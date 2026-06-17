@@ -35,6 +35,15 @@ from typing import List, Union, Dict, Any
 import requests
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
+import socket
+
+# Force IPv4 to prevent "Network Unreachable" errors on Oracle Cloud / IPv6 instances
+old_getaddrinfo = socket.getaddrinfo
+def new_getaddrinfo(*args, **kwargs):
+    if len(args) >= 1:
+        kwargs['family'] = socket.AF_INET
+    return old_getaddrinfo(*args, **kwargs)
+socket.getaddrinfo = new_getaddrinfo
 import sqlite3
 import shutil
 import base64
