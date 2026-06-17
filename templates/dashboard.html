@@ -711,6 +711,14 @@
             <form id="config-form">
                 <!-- Tab: Telegram API Credentials -->
                 <div id="tab-tg-api" class="tab-pane active">
+                    <div class="form-group" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border-color);">
+                        <label for="ENABLE_TELEGRAM_API">Enable Telegram API (User Session)</label>
+                        <select id="ENABLE_TELEGRAM_API" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="true">Enabled (Listen to channels)</option>
+                            <option value="false">Disabled (Ignore Telegram sources)</option>
+                        </select>
+                        <div class="form-note">If disabled, the bot will bypass Telegram user-account login and stop listening to source channels. This is useful if your Telegram account gets temporarily blocked but you still want the RSS feed or other features to work.</div>
+                    </div>
                     <div class="form-group">
                         <label for="TELEGRAM_API_ID">Telegram API ID</label>
                         <input type="text" id="TELEGRAM_API_ID" placeholder="e.g. 1234567">
@@ -725,6 +733,14 @@
 
                 <!-- Tab: Telegram Bot Destination -->
                 <div id="tab-tg-bot" class="tab-pane">
+                    <div class="form-group" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border-color);">
+                        <label for="ENABLE_TELEGRAM_BOT">Enable Telegram Bot Broadcasting</label>
+                        <select id="ENABLE_TELEGRAM_BOT" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="true">Enabled (Send to Telegram)</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                        <div class="form-note">Toggle whether deals should be posted to your destination Telegram channel.</div>
+                    </div>
                     <div class="form-group">
                         <label for="TELEGRAM_BOT_TOKEN">Telegram Bot Token</label>
                         <input type="password" id="TELEGRAM_BOT_TOKEN" placeholder="e.g. 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ">
@@ -743,15 +759,42 @@
                 </div>
 
                 <div id="tab-targets" class="tab-pane">
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label for="ENABLE_SOURCE_CHANNELS">Enable Source Channels Listener</label>
+                        <select id="ENABLE_SOURCE_CHANNELS" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="true">Enabled (Listen to Channels)</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label for="TARGET_CHANNELS">Source Channels (Comma-separated)</label>
                         <textarea id="TARGET_CHANNELS" rows="4" placeholder="e.g. -1009999999999, @deal_source_channel_1, -1008888888888"></textarea>
                         <div class="form-note">List of Telegram channels to listen to for live deals. Put one or more comma-separated IDs or usernames.</div>
                     </div>
-                    <div class="form-group" style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                    <div class="form-group" style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 24px; margin-bottom: 24px;">
+                        <label for="ENABLE_WHITELIST_CHANNELS">Enable Whitelist Channels</label>
+                        <select id="ENABLE_WHITELIST_CHANNELS" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="WHITELIST_CHANNELS">Whitelisted Channels (Skip Link Conversion)</label>
                         <textarea id="WHITELIST_CHANNELS" rows="4" placeholder="e.g. -1001234567890, @my_preconverted_channel"></textarea>
                         <div class="form-note">List of Telegram channels where messages already contain your affiliate links. The bot will forward posts from these channels directly <b>without link conversion</b> to your main Telegram and Discord channels.</div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                        <div class="controls-header" style="margin-bottom: 12px;">
+                            <h3 style="font-size: 16px; color: #a855f7;">Auto RSS Feeds</h3>
+                        </div>
+                        <label for="ENABLE_DESIDIME_RSS">Enable DesiDime Free RSS Feed</label>
+                        <select id="ENABLE_DESIDIME_RSS" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
+                            <option value="false">Disabled</option>
+                            <option value="true">Enabled (Fetch deals automatically)</option>
+                        </select>
+                        <div class="form-note" style="color:var(--warning-color);">Note: If Source Channels are enabled above, this RSS Feed will automatically be disabled to prevent loops.</div>
+                        <div class="form-note">This automatically fetches the latest Tech/Electronics/Gaming deals from DesiDime for free and bypasses Fashion categories.</div>
                     </div>
                 </div>
                 <!-- Tab: Discord Webhook & Bot Integration -->
@@ -1177,6 +1220,7 @@
         async function saveConfig() {
             const keys = [
                 'TELEGRAM_API_ID', 'TELEGRAM_API_HASH', 'TELEGRAM_BOT_TOKEN',
+                'ENABLE_TELEGRAM_API', 'ENABLE_TELEGRAM_BOT', 'ENABLE_SOURCE_CHANNELS', 'ENABLE_WHITELIST_CHANNELS', 'ENABLE_DESIDIME_RSS',
                 'MY_TELEGRAM_CHANNEL', 'TARGET_CHANNELS', 'WHITELIST_CHANNELS', 'DISCORD_MODE', 'DISCORD_WEBHOOK_URL',
                 'DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_IDS',
                 'EARNKARO_PARTNER_ID', 'AFFILIATE_PLATFORM', 'CUELINKS_API_KEY',

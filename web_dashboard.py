@@ -61,32 +61,34 @@ async def startup_event():
     load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"), override=True)
     api_id = os.getenv("TELEGRAM_API_ID")
     api_hash = os.getenv("TELEGRAM_API_HASH")
+    enable_tg_api = os.getenv("ENABLE_TELEGRAM_API", "true").lower() == "true"
     
-    if not api_id or not api_hash:
+    if enable_tg_api and (not api_id or not api_hash):
         logger.info("Auto-start: Missing API credentials in .env. Waiting for manual configuration.")
         return
         
     try:
         logger.info("Auto-start: Attempting to automatically start forwarding service...")
         bot_service = DealForwarderService()
-        session_path = os.path.join(BASE_DIR, 'deal_forwarder_session')
-        bot_service.client = TelegramClient(session_path, int(api_id), api_hash)
         
-        await bot_service.client.connect()
-        
-        if await bot_service.client.is_user_authorized():
-            success = await bot_service.start()
-            if success:
-                bot_status = "running"
-                logger.info("Auto-start: Forwarding service successfully auto-started on boot!")
-            else:
-                bot_status = "error"
-                logger.error("Auto-start: Client authorized but listener streams failed to launch.")
+        if enable_tg_api:
+            session_path = os.path.join(BASE_DIR, 'deal_forwarder_session')
+            bot_service.client = TelegramClient(session_path, int(api_id), api_hash)
+            await bot_service.client.connect()
+            
+            if not await bot_service.client.is_user_authorized():
+                bot_status = "stopped"
+                logger.info("Auto-start: Client not authorized yet. SMS authentication is required via dashboard.")
+                await bot_service.client.disconnect()
+                return
+                
+        success = await bot_service.start()
+        if success:
+            bot_status = "running"
+            logger.info("Auto-start: Forwarding service successfully auto-started on boot!")
         else:
-            bot_status = "stopped"
-            logger.info("Auto-start: Client not authorized yet. SMS authentication is required via dashboard.")
-            # Gracefully disconnect
-            await bot_service.client.disconnect()
+            bot_status = "error"
+            logger.error("Auto-start: Service failed to launch.")
     except Exception as e:
         bot_status = "error"
         logger.error(f"Auto-start failure: {e}", exc_info=True)
@@ -173,6 +175,13 @@ def save_env_configs(configs: Dict[str, str]):
 
             f.write("# [SMART QUEUE POSTING DELAY (SECONDS)]\n")
             f.write(f"DELAY_INTERVAL={configs.get('DELAY_INTERVAL', '900').strip()}\n\n")
+
+            f.write("# [TOGGLE FEATURES (true/false)]\n")
+            f.write(f"ENABLE_TELEGRAM_API={configs.get('ENABLE_TELEGRAM_API', 'true').strip()}\n")
+            f.write(f"ENABLE_TELEGRAM_BOT={configs.get('ENABLE_TELEGRAM_BOT', 'true').strip()}\n")
+            f.write(f"ENABLE_SOURCE_CHANNELS={configs.get('ENABLE_SOURCE_CHANNELS', 'true').strip()}\n")
+            f.write(f"ENABLE_WHITELIST_CHANNELS={configs.get('ENABLE_WHITELIST_CHANNELS', 'true').strip()}\n")
+            f.write(f"ENABLE_DESIDIME_RSS={configs.get('ENABLE_DESIDIME_RSS', 'false').strip()}\n\n")
 
             f.write("# [PINTEREST INTEGRATION CONFIGURATION]\n")
             f.write(f"PINTEREST_ENABLED={configs.get('PINTEREST_ENABLED', 'false').strip()}\n")
@@ -281,6 +290,11 @@ async def get_current_configuration(request: Request):
         "CUELINKS_API_KEY": os.getenv("CUELINKS_API_KEY", ""),
         "AMAZON_ASSOCIATE_TAG": os.getenv("AMAZON_ASSOCIATE_TAG", ""),
         "DELAY_INTERVAL": os.getenv("DELAY_INTERVAL", "900"),
+        "ENABLE_TELEGRAM_API": os.getenv("ENABLE_TELEGRAM_API", "true"),
+        "ENABLE_TELEGRAM_BOT": os.getenv("ENABLE_TELEGRAM_BOT", "true"),
+        "ENABLE_SOURCE_CHANNELS": os.getenv("ENABLE_SOURCE_CHANNELS", "true"),
+        "ENABLE_WHITELIST_CHANNELS": os.getenv("ENABLE_WHITELIST_CHANNELS", "true"),
+        "ENABLE_DESIDIME_RSS": os.getenv("ENABLE_DESIDIME_RSS", "false"),
         "PINTEREST_ENABLED": os.getenv("PINTEREST_ENABLED", "false"),
         "PINTEREST_ACCESS_TOKEN": masked_token,
         "PINTEREST_BOARD_ID": os.getenv("PINTEREST_BOARD_ID", ""),
@@ -401,8 +415,9 @@ async def start_bot_service(request: Request):
     load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"), override=True)
     api_id = os.getenv("TELEGRAM_API_ID")
     api_hash = os.getenv("TELEGRAM_API_HASH")
+    enable_tg_api = os.getenv("ENABLE_TELEGRAM_API", "true").lower() == "true"
     
-    if not api_id or not api_hash:
+    if enable_tg_api and (not api_id or not api_hash):
         raise HTTPException(
             status_code=400, 
             detail="Missing TELEGRAM_API_ID or TELEGRAM_API_HASH. Complete API settings first."
@@ -410,16 +425,18 @@ async def start_bot_service(request: Request):
 
     try:
         bot_service = DealForwarderService()
-        session_path = os.path.join(BASE_DIR, 'deal_forwarder_session')
-        bot_service.client = TelegramClient(session_path, int(api_id), api_hash)
         
-        await bot_service.client.connect()
-        
-        if not await bot_service.client.is_user_authorized():
-            bot_status = "authenticating"
-            service_logger.info("Headless auth needed. Opening Web SMS Code wizard...")
-            return {"status": "authenticating", "message": "Telegram SMS authorization required."}
+        if enable_tg_api:
+            session_path = os.path.join(BASE_DIR, 'deal_forwarder_session')
+            bot_service.client = TelegramClient(session_path, int(api_id), api_hash)
             
+            await bot_service.client.connect()
+            
+            if not await bot_service.client.is_user_authorized():
+                bot_status = "authenticating"
+                service_logger.info("Headless auth needed. Opening Web SMS Code wizard...")
+                return {"status": "authenticating", "message": "Telegram SMS authorization required."}
+                
         success = await bot_service.start()
         if success:
             bot_status = "running"
@@ -427,7 +444,7 @@ async def start_bot_service(request: Request):
             return {"status": "running", "message": "Bot is fully operational!"}
         else:
             bot_status = "error"
-            return {"status": "error", "message": "Failed to launch listener chat streams."}
+            return {"status": "error", "message": "Failed to launch service streams."}
             
     except Exception as e:
         bot_status = "error"

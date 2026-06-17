@@ -411,6 +411,7 @@ class DealForwarderService:
         self._handler_ref = None
         self.deal_queue = asyncio.Queue()
         self.queue_worker_task = None
+        self.rss_worker_task = None
         
         # Load configs
         self.load_config(config_dict)
@@ -458,6 +459,11 @@ class DealForwarderService:
             "amazon_tag": config_dict.get("AMAZON_ASSOCIATE_TAG", ""),
             "whitelist_channels_raw": config_dict.get("WHITELIST_CHANNELS", ""),
             "delay_interval_raw": config_dict.get("DELAY_INTERVAL", "900"),
+            "enable_tg_api": str(config_dict.get("ENABLE_TELEGRAM_API", "true")).lower() == "true",
+            "enable_tg_bot": str(config_dict.get("ENABLE_TELEGRAM_BOT", "true")).lower() == "true",
+            "enable_source_channels": str(config_dict.get("ENABLE_SOURCE_CHANNELS", "true")).lower() == "true",
+            "enable_whitelist_channels": str(config_dict.get("ENABLE_WHITELIST_CHANNELS", "true")).lower() == "true",
+            "enable_desidime_rss": str(config_dict.get("ENABLE_DESIDIME_RSS", "false")).lower() == "true",
             "pinterest_enabled": str(config_dict.get("PINTEREST_ENABLED", "false")).lower() == "true",
             "pinterest_access_token": config_dict.get("PINTEREST_ACCESS_TOKEN", ""),
             "pinterest_board_id": config_dict.get("PINTEREST_BOARD_ID", ""),
@@ -627,6 +633,10 @@ class DealForwarderService:
     # =====================================================================
     async def send_to_telegram(self, text: str, affiliate_url: str = None, photo_path: str = None) -> bool:
         """Sends deal to Telegram channel via bot token."""
+        if not self.config.get("enable_tg_bot", True):
+            logger.info("Telegram Bot Broadcasting is DISABLED. Skipping Telegram forward.")
+            return False
+
         bot_token = self.config.get("bot_token")
         my_channel = self.config.get("my_channel")
         
@@ -1118,45 +1128,151 @@ class DealForwarderService:
         except Exception as e:
             logger.error(f"Queue Worker: Crash exception: {e}")
 
+    async def desidime_rss_worker_loop(self):
+        """Asynchronously fetches deals from DesiDime RSS feed every 5 minutes."""
+        logger.info("DesiDime RSS Worker: Started fetching deals in background...")
+        import xml.etree.ElementTree as ET
+        import time
+
+        seen_urls = set()
+        
+        while self.is_running:
+            try:
+                # Use a proper User-Agent to avoid getting blocked
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                }
+                logger.info("RSS Worker: Fetching latest deals from DesiDime...")
+                
+                # Fetch Atom feed
+                response = await asyncio.to_thread(requests.get, "https://www.desidime.com/posts.atom", headers=headers, timeout=15)
+                
+                if response.status_code == 200:
+                    root = ET.fromstring(response.text)
+                    
+                    # Define namespace
+                    ns = {'atom': 'http://www.w3.org/2005/Atom'}
+                    
+                    # Keywords for filtering
+                    whitelist = ["electric", "tech", "gaming", "phone", "computer", "headphone", "microphone", "finger sleeve", "laptop", "smartwatch", "monitor", "earbuds", "tv"]
+                    blacklist = ["fashion", "clothes", "shoe", "wear", "shirt", "pant", "grocery", "food"]
+                    
+                    entries = root.findall('atom:entry', ns)
+                    # Process from oldest to newest in the current batch if we want chronological order, but usually feed is newest first.
+                    # We'll just iterate.
+                    for entry in entries:
+                        title_elem = entry.find('atom:title', ns)
+                        content_elem = entry.find('atom:content', ns)
+                        link_elem = entry.find('atom:link', ns)
+                        
+                        if title_elem is None or link_elem is None:
+                            continue
+                            
+                        title = title_elem.text
+                        link = link_elem.attrib.get('href')
+                        content = content_elem.text if content_elem is not None else ""
+                        
+                        if not link or link in seen_urls:
+                            continue
+                            
+                        seen_urls.add(link)
+                        
+                        # Apply Filtering
+                        combined_text = (title + " " + content).lower()
+                        
+                        has_whitelist = any(wl in combined_text for wl in whitelist)
+                        has_blacklist = any(bl in combined_text for bl in blacklist)
+                        
+                        if has_whitelist and not has_blacklist:
+                            logger.info(f"RSS Worker: Found matching deal! Title: {title}")
+                            
+                            # Convert to affiliate
+                            affiliate_url = self.convert_to_affiliate(link)
+                            
+                            # Clean content slightly for raw text (strip HTML)
+                            clean_content = re.sub(r'<[^>]+>', '', content)
+                            raw_text = f"{title}\n\n{clean_content}"
+                            escaped_text = escape_html(raw_text)
+                            
+                            deal_payload = {
+                                "escaped_text": escaped_text,
+                                "raw_text": raw_text,
+                                "affiliate_url": affiliate_url,
+                                "photo_path": None
+                            }
+                            
+                            await self.deal_queue.put(deal_payload)
+                            logger.info(f"RSS Worker: Deal added to queue. Queue size: {self.deal_queue.qsize()}")
+                            
+                else:
+                    logger.error(f"RSS Worker: Failed to fetch RSS feed. Status Code: {response.status_code}")
+                    
+            except Exception as e:
+                logger.error(f"RSS Worker Exception: {e}")
+                
+            # Wait 5 minutes before fetching again
+            await asyncio.sleep(300)
+
     # =====================================================================
     # LIFECYCLE MANAGEMENT
     # =====================================================================
     async def start(self):
-        """Starts the Telethon user client and registers listeners."""
+        """Starts the Telegram listener and/or RSS worker."""
         if self.is_running:
             logger.warning("Service is already running.")
             return True
 
-        api_id = self.config.get("api_id")
-        api_hash = self.config.get("api_hash")
-        target_chats = list(set(self.config.get("target_channels", []) + self.config.get("whitelist_channels", [])))
+        enable_tg_api = self.config.get("enable_tg_api", True)
+        enable_source_channels = self.config.get("enable_source_channels", True)
+        enable_whitelist_channels = self.config.get("enable_whitelist_channels", True)
+        enable_desidime_rss = self.config.get("enable_desidime_rss", False)
 
-        if not api_id or not api_hash:
-            raise ValueError("Telegram API_ID and API_HASH are required to start Telethon.")
+        # Mutual Exclusion Check
+        if enable_source_channels and enable_desidime_rss:
+            logger.warning("MUTUAL EXCLUSION: Both Source Channels and DesiDime RSS are enabled. Disabling RSS feed to prevent duplicate posting loops.")
+            enable_desidime_rss = False
+            # We don't modify self.config here permanently, just the local execution flag.
 
-        if self.client is None:
-            logger.info("Starting Telethon Client session...")
-            session_path = os.path.join(BASE_DIR, 'deal_forwarder_session')
-            self.client = TelegramClient(session_path, int(api_id), api_hash)
-        
-        if not self.client.is_connected():
-            await self.client.connect()
-        
-        if not await self.client.is_user_authorized():
-            logger.warning("Session is not authorized. Web or Console authentication is required.")
-            self.is_running = False
-            return False
- 
-        # Register event handler
-        if target_chats:
-            if not self._handler_ref:
-                @self.client.on(events.NewMessage(chats=target_chats))
-                async def handler(event):
-                    await self.process_message(event)
-                self._handler_ref = handler
-                logger.info(f"Registered live listener for chats: {target_chats}")
+        target_chats = []
+        if enable_source_channels:
+            target_chats.extend(self.config.get("target_channels", []))
+        if enable_whitelist_channels:
+            target_chats.extend(self.config.get("whitelist_channels", []))
+            
+        target_chats = list(set(target_chats))
+
+        if enable_tg_api:
+            api_id = self.config.get("api_id")
+            api_hash = self.config.get("api_hash")
+            
+            if not api_id or not api_hash:
+                raise ValueError("Telegram API_ID and API_HASH are required to start Telethon.")
+
+            if self.client is None:
+                logger.info("Starting Telethon Client session...")
+                session_path = os.path.join(BASE_DIR, 'deal_forwarder_session')
+                self.client = TelegramClient(session_path, int(api_id), api_hash)
+            
+            if not self.client.is_connected():
+                await self.client.connect()
+            
+            if not await self.client.is_user_authorized():
+                logger.warning("Session is not authorized. Web or Console authentication is required.")
+                self.is_running = False
+                return False
+     
+            # Register event handler
+            if target_chats:
+                if not self._handler_ref:
+                    @self.client.on(events.NewMessage(chats=target_chats))
+                    async def handler(event):
+                        await self.process_message(event)
+                    self._handler_ref = handler
+                    logger.info(f"Registered live listener for chats: {target_chats}")
+            else:
+                logger.warning("No target channels configured or enabled. Telegram listener is active but idle.")
         else:
-            logger.warning("No target channels configured. Listening is disabled.")
+            logger.info("Telegram API is DISABLED. Skipping user session connection and live channel listener.")
  
         self.stats["start_time"] = datetime.datetime.now()
         self.is_running = True
@@ -1164,6 +1280,12 @@ class DealForwarderService:
         # Start background queue worker
         if not self.queue_worker_task:
             self.queue_worker_task = asyncio.create_task(self.deal_queue_worker())
+
+        # Start background RSS worker if enabled
+        if enable_desidime_rss:
+            if not self.rss_worker_task:
+                self.rss_worker_task = asyncio.create_task(self.desidime_rss_worker_loop())
+                logger.info("Started DesiDime RSS Worker.")
 
         logger.info("Deal Forwarding Service is fully operational!")
         return True
@@ -1179,6 +1301,11 @@ class DealForwarderService:
         if self.queue_worker_task:
             self.queue_worker_task.cancel()
             self.queue_worker_task = None
+            
+        # Cancel RSS worker
+        if self.rss_worker_task:
+            self.rss_worker_task.cancel()
+            self.rss_worker_task = None
 
         if self.client:
             if self._handler_ref:
