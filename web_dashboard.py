@@ -457,7 +457,7 @@ async def start_bot_service(request: Request):
             
     except Exception as e:
         bot_status = "error"
-        logger.error(f"Startup crash: {e}", exc_info=True)
+        service_logger.error(f"Startup crash: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Startup crashed: {str(e)}")
 
 @app.post("/api/bot/stop")

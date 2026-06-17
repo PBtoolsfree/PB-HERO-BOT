@@ -451,7 +451,12 @@ class DealForwarderService:
                 "PINTEREST_MIN_DISCOUNT": os.getenv("PINTEREST_MIN_DISCOUNT", "30"),
                 "PINTEREST_MIN_SAVING": os.getenv("PINTEREST_MIN_SAVING", "300"),
                 "PINTEREST_DAILY_LIMIT": os.getenv("PINTEREST_DAILY_LIMIT", "5"),
-                "PINTEREST_DUPLICATE_DAYS": os.getenv("PINTEREST_DUPLICATE_DAYS", "7")
+                "PINTEREST_DUPLICATE_DAYS": os.getenv("PINTEREST_DUPLICATE_DAYS", "7"),
+                "ENABLE_TELEGRAM_API": os.getenv("ENABLE_TELEGRAM_API", "true"),
+                "ENABLE_TELEGRAM_BOT": os.getenv("ENABLE_TELEGRAM_BOT", "true"),
+                "ENABLE_SOURCE_CHANNELS": os.getenv("ENABLE_SOURCE_CHANNELS", "true"),
+                "ENABLE_WHITELIST_CHANNELS": os.getenv("ENABLE_WHITELIST_CHANNELS", "true"),
+                "ENABLE_DESIDIME_RSS": os.getenv("ENABLE_DESIDIME_RSS", "false")
             }
 
         self.config = {
