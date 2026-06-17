@@ -1141,10 +1141,11 @@ class DealForwarderService:
             logger.error(f"Queue Worker: Crash exception: {e}")
 
     async def desidime_rss_worker_loop(self):
-        """Asynchronously fetches deals from DesiDime RSS feed every 5 minutes."""
+        """Asynchronously fetches deals from DesiDime (via HTML scraping) every 5 minutes."""
         logger.info("DesiDime RSS Worker: Started fetching deals in background...")
-        import xml.etree.ElementTree as ET
         import time
+        import re
+        import html
 
         seen_urls = set()
         
@@ -1154,35 +1155,31 @@ class DealForwarderService:
                 headers = {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
                 }
-                logger.info("RSS Worker: Fetching latest deals from DesiDime...")
+                logger.info("RSS Worker: Fetching latest deals from DesiDime HTML...")
                 
-                # Fetch Atom feed
-                response = await asyncio.to_thread(requests.get, "https://www.desidime.com/posts.atom", headers=headers, timeout=15)
+                # DesiDime Atom feeds (posts.atom) are broken (Status 500) from their end.
+                # So we fallback to scraping the homepage HTML directly.
+                response = await asyncio.to_thread(requests.get, "https://www.desidime.com/", headers=headers, timeout=15)
                 
                 if response.status_code == 200:
-                    root = ET.fromstring(response.text)
+                    html_content = response.text
                     
-                    # Define namespace
-                    ns = {'atom': 'http://www.w3.org/2005/Atom'}
+                    # Regex to find deals on the homepage HTML
+                    # Looks for: href="/deals/some-deal-url" ... <span class="font-medium">Deal Title</span>
+                    pattern = re.compile(r'href="(/deals/[^"]+)".*?<span class="font-medium">\s*(.*?)\s*</span>', re.DOTALL)
+                    matches = pattern.findall(html_content)
                     
                     # Keywords for filtering
                     whitelist = ["electric", "tech", "gaming", "phone", "computer", "headphone", "microphone", "finger sleeve", "laptop", "smartwatch", "monitor", "earbuds", "tv"]
                     blacklist = ["fashion", "clothes", "shoe", "wear", "shirt", "pant", "grocery", "food"]
                     
-                    entries = root.findall('atom:entry', ns)
-                    # Process from oldest to newest in the current batch if we want chronological order, but usually feed is newest first.
-                    # We'll just iterate.
-                    for entry in entries:
-                        title_elem = entry.find('atom:title', ns)
-                        content_elem = entry.find('atom:content', ns)
-                        link_elem = entry.find('atom:link', ns)
+                    for match in matches[:40]:
+                        link_path = match[0]
+                        title = html.unescape(match[1].strip())
                         
-                        if title_elem is None or link_elem is None:
-                            continue
-                            
-                        title = title_elem.text
-                        link = link_elem.attrib.get('href')
-                        content = content_elem.text if content_elem is not None else ""
+                        if '?' in link_path:
+                            link_path = link_path.split('?')[0]
+                        link = "https://www.desidime.com" + link_path
                         
                         if not link or link in seen_urls:
                             continue
@@ -1190,7 +1187,7 @@ class DealForwarderService:
                         seen_urls.add(link)
                         
                         # Apply Filtering
-                        combined_text = (title + " " + content).lower()
+                        combined_text = title.lower()
                         
                         has_whitelist = any(wl in combined_text for wl in whitelist)
                         has_blacklist = any(bl in combined_text for bl in blacklist)
@@ -1201,9 +1198,7 @@ class DealForwarderService:
                             # Convert to affiliate
                             affiliate_url = self.convert_to_affiliate(link)
                             
-                            # Clean content slightly for raw text (strip HTML)
-                            clean_content = re.sub(r'<[^>]+>', '', content)
-                            raw_text = f"{title}\n\n{clean_content}"
+                            raw_text = f"{title}"
                             escaped_text = escape_html(raw_text)
                             
                             deal_payload = {
@@ -1217,7 +1212,7 @@ class DealForwarderService:
                             logger.info(f"RSS Worker: Deal added to queue. Queue size: {self.deal_queue.qsize()}")
                             
                 else:
-                    logger.error(f"RSS Worker: Failed to fetch RSS feed. Status Code: {response.status_code}")
+                    logger.error(f"RSS Worker: Failed to fetch DesiDime HTML. Status Code: {response.status_code}")
                     
             except Exception as e:
                 logger.error(f"RSS Worker Exception: {e}")
