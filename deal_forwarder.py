@@ -616,10 +616,12 @@ class DealForwarderService:
                         if isinstance(res_json, dict):
                             if res_json.get("success") == 1 or "data" in res_json:
                                 converted_url = res_json.get("data")
-                                if converted_url:
+                                if converted_url and isinstance(converted_url, str) and converted_url.strip().startswith("http"):
                                     logger.info("Successfully converted link using EarnKaro (Affiliaters IN) API!")
                                     cleaned_url = clean_affiliate_url(converted_url.strip(), api_key)
                                     return cleaned_url
+                                else:
+                                    logger.error(f"EarnKaro API returned invalid URL or error string: {converted_url}")
                             elif "message" in res_json:
                                 logger.error(f"EarnKaro API returned error: {res_json['message']}")
                     else:
