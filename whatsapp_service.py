@@ -82,10 +82,23 @@ class WhatsAppService:
                 except Exception as e:
                     logger.error(f"Failed to capture debug screenshot: {e}")
 
-                # Check if QR code is present
+                # First, check if we are successfully logged in by looking for the main chats pane
+                chat_pane = await self.page.query_selector("#pane-side")
+                
+                if chat_pane:
+                    if not self.logged_in:
+                        logger.info("Successfully logged into WhatsApp Web!")
+                        self.logged_in = True
+                        self.qr_code_b64 = None
+                    await asyncio.sleep(2)
+                    continue
+
+                # If we reach here, we are not fully logged in yet
+                self.logged_in = False
+                
+                # Check if QR code canvas is present
                 qr_canvas = await self.page.query_selector("canvas")
                 if qr_canvas:
-                    self.logged_in = False
                     # Extract QR code data URL using page evaluation
                     self.qr_code_b64 = await self.page.evaluate('''() => {
                         const canvas = document.querySelector("canvas");
@@ -96,19 +109,7 @@ class WhatsAppService:
                         return null;
                     }''')
                 else:
-                    # Check if we are logged in (e.g., search box is present)
-                    search_box = await self.page.query_selector("div[contenteditable='true'][data-tab='3']")
-                    if search_box:
-                        if not self.logged_in:
-                            logger.info("WhatsApp Web Logged In Successfully!")
-                            self.logged_in = True
-                            self.qr_code_b64 = None
-                        
-                        # Here we would implement the scraping logic for source channels
-                        # For now, it's a placeholder to keep the session alive
-                    else:
-                        # Might be loading or syncing
-                        pass
+                    self.qr_code_b64 = None
                 
             except Exception as e:
                 logger.error(f"Error in WhatsApp main loop: {e}")

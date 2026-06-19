@@ -1461,11 +1461,11 @@
                     
                     if (data.is_logged_in) {
                         badge.className = 'pinterest-badge discount';
-                        badge.innerText = 'Logged In Successfully';
+                        badge.innerText = 'Linked / Active';
                         qrContainer.style.display = 'none';
                     } else if (!data.is_running) {
                         badge.className = 'pinterest-badge error-badge';
-                        badge.innerText = 'Service Stopped';
+                        badge.innerText = 'Disconnected / Stopped';
                         qrContainer.style.display = 'none';
                     } else if (data.qr_code) {
                         badge.className = 'pinterest-badge error-badge';
