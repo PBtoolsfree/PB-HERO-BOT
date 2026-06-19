@@ -11,6 +11,9 @@
   - **EarnKaro API** (via `ekaro-api.affiliaters.in` wrapper) with JWT token cleanup.
   - **Cuelinks API v2** integration.
   - **Direct Amazon Associates Tag** replacement.
+- 📱 **WhatsApp Web Playwright Scraper**: Built-in headless Chrome automation to scan QR codes and intercept encrypted deals from WhatsApp Channels/Groups natively.
+- 📌 **Pinterest Automation**: Automatically downloads product images and posts affiliate deals to your Pinterest boards using the official Pinterest API.
+- 📘 **Facebook Page Integration**: Uses the Facebook Graph API to automatically publish deals with images and links directly to your public Facebook pages.
 - 🖥️ **Interactive Web Console**: Built with high-end glassmorphic UI templates and security cookies to securely configure, start, stop, and monitor the bot state.
 - 📲 **Programmatic SMS Auth Wizard**: A headless Telethon integration allowing you to trigger and enter verification SMS codes and 2-Factor Authentication (2FA) directly from the web browser.
 - ⚡ **Background Daemon Resilience**: Automatically runs as a persistent system background daemon (`systemd`), with automatic restart triggers.
@@ -149,6 +152,26 @@ update.bat
 
 ---
 
+## 🧹 Server Migration & Complete Uninstallation
+
+If you are moving to a new cloud VPS (e.g., upgrading from 1GB RAM to a larger server) and want to securely wipe PB Hero Bot from your old server without breaking the underlying Ubuntu OS:
+
+```bash
+cd ~
+wget -O uninstall.sh https://raw.githubusercontent.com/PBtoolsfree/PB-HERO-BOT/main/uninstall.sh
+sudo bash uninstall.sh
+```
+
+This aggressive uninstaller completely purges:
+- The systemd background daemon (`pbherobot.service`).
+- All downloaded Playwright Chromium browsers and heavy graphical caching (`libnss3`, `xvfb`, etc.).
+- Python virtual environments, pip packages, and libraries.
+- The entire bot database, active session files, and source code.
+
+*(Note: It safely preserves the core system `python3` to prevent breaking the Linux package manager).*
+
+---
+
 ## ⚙️ Environment Configuration (`.env`)
 
 The system configuration is read from `.env`. The key parameters can be set directly via the Web Dashboard settings tab or manually:
@@ -173,20 +196,23 @@ The system configuration is read from `.env`. The key parameters can be set dire
 ---
 
 ## 📊 File Structure
-```
+```text
 PB-HERO-BOT/
 ├── deal_forwarder.py       # Core affiliate forwarding & link converter service
 ├── web_dashboard.py        # FastAPI control server and headless programmatic auth backend
+├── whatsapp_service.py     # Playwright headless browser automation for WhatsApp Web
 ├── update_and_check.py     # Premium auto-updater and system diagnostics health check tool
 ├── update.bat              # One-click Windows Command Prompt manual update launcher
 ├── update.sh               # One-click Linux Terminal manual update launcher
 ├── install.sh              # One-click Ubuntu cloud deployment script
+├── uninstall.sh            # Aggressive server cleanup & migration utility
 ├── start.bat               # Windows environment setup and startup wizard script
 ├── requirements.txt        # System requirements
 ├── .env.example            # Sample configuration template
 ├── templates/
 │   ├── dashboard.html      # High-end glassmorphic control center template
 │   └── login.html          # Dynamic dashboard portal login interface template
+├── pinterest_media/        # Local storage for downloaded product images
 └── deal_forwarder.log      # Runtime execution logger database file
 ```
 
