@@ -515,8 +515,12 @@ async def start_whatsapp(request: Request):
     """Starts the WhatsApp service manually if not started."""
     if not is_authenticated(request):
         raise HTTPException(status_code=401, detail="Unauthorized access.")
-    await whatsapp_service_instance.start()
-    return {"status": "success", "message": "WhatsApp service started."}
+    try:
+        await whatsapp_service_instance.start()
+        return {"status": "success", "message": "WhatsApp service started."}
+    except Exception as e:
+        logger.error(f"WhatsApp start error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # =====================================================================
 # TELETHON PROGRAMMATIC WEB AUTHENTICATION APIs

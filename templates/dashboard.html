@@ -1488,14 +1488,15 @@
         async function startWhatsApp() {
             try {
                 const response = await fetch('/api/whatsapp/start', { method: 'POST' });
+                const resData = await response.json();
                 if (response.ok) {
                     showToast("WhatsApp Service Started");
                     pollWhatsAppStatus();
                 } else {
-                    showToast("Failed to start WhatsApp service", true);
+                    showToast("Failed to start WhatsApp service: " + (resData.detail || "Unknown Error"), true);
                 }
             } catch (err) {
-                showToast("Request failed", true);
+                showToast("Request failed: " + err, true);
             }
         }
 
