@@ -954,7 +954,7 @@
                         <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--primary-accent);">WhatsApp Login Status</h3>
                         <div id="wa-status-badge" class="pinterest-badge error-badge" style="display:inline-block; margin-bottom:12px;">Checking...</div>
                         <br>
-                        <button type="button" class="btn btn-primary" style="padding: 8px 16px; font-size: 12px;" onclick="startWhatsApp()">Start WhatsApp Service</button>
+                        <button id="btn-wa-toggle" type="button" class="btn btn-primary" style="padding: 8px 16px; font-size: 12px;" onclick="toggleWhatsApp('start')">Start WhatsApp Service</button>
                         
                         <div id="wa-qr-container" style="margin-top: 16px; display: none;">
                             <label style="font-size: 12px; color: var(--text-muted);">Scan QR Code to Login:</label>
@@ -1479,21 +1479,35 @@
                         badge.innerText = 'Initializing WhatsApp...';
                         qrContainer.style.display = 'none';
                     }
+                    
+                    // Update Button State
+                    const waBtn = document.getElementById('btn-wa-toggle');
+                    if (waBtn) {
+                        if (data.is_running) {
+                            waBtn.innerText = 'Stop WhatsApp Service';
+                            waBtn.className = 'btn btn-danger';
+                            waBtn.setAttribute('onclick', "toggleWhatsApp('stop')");
+                        } else {
+                            waBtn.innerText = 'Start WhatsApp Service';
+                            waBtn.className = 'btn btn-primary';
+                            waBtn.setAttribute('onclick', "toggleWhatsApp('start')");
+                        }
+                    }
                 }
             } catch (err) {
                 console.error("WhatsApp status poll error", err);
             }
         }
         
-        async function startWhatsApp() {
+        async function toggleWhatsApp(action) {
             try {
-                const response = await fetch('/api/whatsapp/start', { method: 'POST' });
+                const response = await fetch(`/api/whatsapp/${action}`, { method: 'POST' });
                 const resData = await response.json();
                 if (response.ok) {
-                    showToast("WhatsApp Service Started");
+                    showToast(`WhatsApp Service ${action === 'start' ? 'Started' : 'Stopped'}`);
                     pollWhatsAppStatus();
                 } else {
-                    showToast("Failed to start WhatsApp service: " + (resData.detail || "Unknown Error"), true);
+                    showToast(`Failed to ${action} WhatsApp service: ` + (resData.detail || "Unknown Error"), true);
                 }
             } catch (err) {
                 showToast("Request failed: " + err, true);

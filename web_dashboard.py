@@ -522,6 +522,18 @@ async def start_whatsapp(request: Request):
         logger.error(f"WhatsApp start error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/whatsapp/stop")
+async def stop_whatsapp(request: Request):
+    """Stops the WhatsApp service manually."""
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    try:
+        await whatsapp_service_instance.stop()
+        return {"status": "success", "message": "WhatsApp service stopped."}
+    except Exception as e:
+        logger.error(f"WhatsApp stop error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # =====================================================================
 # TELETHON PROGRAMMATIC WEB AUTHENTICATION APIs
 # =====================================================================
