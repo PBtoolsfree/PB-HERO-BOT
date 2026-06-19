@@ -417,6 +417,7 @@ class DealForwarderService:
         self.client = None
         self.is_running = False
         self._handler_ref = None
+        self._me_handler_ref = None
         self.deal_queue = asyncio.Queue()
         self.queue_worker_task = None
         self.rss_worker_task = None
@@ -998,6 +999,34 @@ class DealForwarderService:
     # =====================================================================
     # MESSAGE LISTENER HANDLER
     # =====================================================================
+    async def process_test_message(self, event: events.NewMessage.Event):
+        """Processes a message sent in Saved Messages (me) to test affiliate conversion."""
+        text = event.message.message
+        if not text and not event.message.photo:
+            return
+
+        # Find all raw URLs in the text
+        raw_urls = URL_REGEX.findall(text or "")
+        product_urls = [url for url in raw_urls if is_product_url(url)]
+        
+        if not product_urls:
+            return
+
+        logger.info(f"Test deal detected in Saved Messages. Extracted product URL count: {len(product_urls)}")
+        original_url = product_urls[0]
+        affiliate_url = self.convert_to_affiliate(original_url)
+        
+        cleaned_text = self.clean_message_text(text, product_urls)
+        escaped_tg_text = escape_html(cleaned_text)
+        
+        # Build test response
+        formatted_text = f"🧪 <b>Bot Sandbox Test Conversion:</b>\n\n{escaped_tg_text}\n\n🛒 <b>Buy Link:</b> <a href=\"{affiliate_url}\">{affiliate_url}</a>"
+        
+        try:
+            await event.reply(formatted_text, parse_mode="HTML", link_preview=False)
+        except Exception as e:
+            logger.error(f"Failed to reply to test message: {e}")
+
     async def process_message(self, event: events.NewMessage.Event):
         """Processes a live incoming message, extracts links, and forwards."""
         text = event.message.message
@@ -1353,6 +1382,14 @@ class DealForwarderService:
                     logger.info(f"Registered live listener for chats: {target_chats}")
             else:
                 logger.warning("No target channels configured or enabled. Telegram listener is active but idle.")
+
+            # Register Sandbox "me" handler for testing
+            if not self._me_handler_ref:
+                @self.client.on(events.NewMessage(chats=["me"]))
+                async def me_handler(event):
+                    await self.process_test_message(event)
+                self._me_handler_ref = me_handler
+                logger.info("Registered sandbox listener for 'Saved Messages' (me)")
         else:
             logger.info("Telegram API is DISABLED. Skipping user session connection and live channel listener.")
  
@@ -1400,6 +1437,14 @@ class DealForwarderService:
                 except Exception:
                     pass
                 self._handler_ref = None
+                
+            if self._me_handler_ref:
+                try:
+                    self.client.remove_event_handler(self._me_handler_ref)
+                except Exception:
+                    pass
+                self._me_handler_ref = None
+                
             try:
                 await self.client.disconnect()
             except Exception as e:
