@@ -37,7 +37,8 @@ class WhatsAppService:
         self.browser = await self.playwright.chromium.launch_persistent_context(
             user_data_dir=WHATSAPP_SESSION_DIR,
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"]
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-blink-features=AutomationControlled"]
         )
         self.page = await self.browser.new_page()
         self.is_running = True
@@ -74,13 +75,17 @@ class WhatsAppService:
         while self.is_running:
             try:
                 # Check if QR code is present
-                qr_canvas = await self.page.query_selector("canvas[aria-label='Scan me!']")
+                qr_canvas = await self.page.query_selector("canvas")
                 if qr_canvas:
                     self.logged_in = False
                     # Extract QR code data URL using page evaluation
                     self.qr_code_b64 = await self.page.evaluate('''() => {
-                        const canvas = document.querySelector("canvas[aria-label='Scan me!']");
-                        return canvas ? canvas.toDataURL('image/png') : null;
+                        const canvas = document.querySelector("canvas");
+                        if (canvas) {
+                            const dataUrl = canvas.toDataURL('image/png');
+                            return dataUrl.includes(',') ? dataUrl.split(',')[1] : null;
+                        }
+                        return null;
                     }''')
                 else:
                     # Check if we are logged in (e.g., search box is present)
