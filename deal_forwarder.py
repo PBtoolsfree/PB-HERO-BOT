@@ -274,9 +274,9 @@ logger.addHandler(file_handler)
 # Prevent log propagation to avoid double logging
 logger.propagate = False
 
-# Regex compiler to detect and extract standard HTTP/HTTPS URLs.
+# Regex compiler to detect and extract standard URLs and schemeless shortened domains.
 URL_REGEX = re.compile(
-    r'https?://(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?::\d+)?(?:/[^\s<>"]*?)?(?=[.,;:!?")\]]?(?:\s|$))',
+    r'(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)+(?:com|in|to|cc|ly|it|co|net|org)(?::\d+)?(?:/[^\s<>"]*?)?(?=[.,;:!?")\]]?(?:\s|$))',
     re.IGNORECASE
 )
 

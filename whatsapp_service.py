@@ -120,6 +120,9 @@ class WhatsAppService:
                                 continue
                                 
                             await search_box.fill(target_chat)
+                            await asyncio.sleep(1)
+                            await self.page.keyboard.press("ArrowDown")
+                            await asyncio.sleep(0.5)
                             await self.page.keyboard.press("Enter")
                             await asyncio.sleep(2) # Wait for chat to load
                             
@@ -131,12 +134,8 @@ class WhatsAppService:
                                 
                             # Check the last 3 messages
                             for msg_el in msg_elements[-3:]:
-                                # Extract text
-                                text_el = await msg_el.query_selector("span.selectable-text")
-                                if not text_el:
-                                    continue
-                                    
-                                msg_text = await text_el.inner_text()
+                                # Extract ALL text from the message bubble (safer than specific spans)
+                                msg_text = await msg_el.inner_text()
                                 if not msg_text or len(msg_text) < 5:
                                     continue
                                     
