@@ -74,6 +74,14 @@ class WhatsAppService:
 
         while self.is_running:
             try:
+                # DEBUG: Capture screenshot to see what playwright sees
+                try:
+                    debug_path = os.path.join(BASE_DIR, "pinterest_media", "whatsapp_debug.png")
+                    os.makedirs(os.path.dirname(debug_path), exist_ok=True)
+                    await self.page.screenshot(path=debug_path)
+                except Exception as e:
+                    logger.error(f"Failed to capture debug screenshot: {e}")
+
                 # Check if QR code is present
                 qr_canvas = await self.page.query_selector("canvas")
                 if qr_canvas:
