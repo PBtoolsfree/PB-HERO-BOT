@@ -44,6 +44,9 @@ app = FastAPI(title="PB Hero Bot Control System")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DashboardServer")
 
+# Import WhatsApp Service
+from whatsapp_service import whatsapp_service_instance
+
 # Compute absolute base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -209,6 +212,16 @@ def save_env_configs(configs: Dict[str, str]):
             f.write(f"PINTEREST_DAILY_LIMIT={configs.get('PINTEREST_DAILY_LIMIT', '5').strip()}\n")
             f.write(f"PINTEREST_DUPLICATE_DAYS={configs.get('PINTEREST_DUPLICATE_DAYS', '7').strip()}\n\n")
 
+            f.write("# [FACEBOOK PAGE INTEGRATION]\n")
+            f.write(f"FACEBOOK_PAGE_TOKEN={configs.get('FACEBOOK_PAGE_TOKEN', '').strip()}\n")
+            f.write(f"FACEBOOK_PAGE_ID={configs.get('FACEBOOK_PAGE_ID', '').strip()}\n")
+            f.write(f"FACEBOOK_KEYWORDS={configs.get('FACEBOOK_KEYWORDS', 'smartphone, laptop, computer, desktop, headphone, gaming console, electric gadget').strip()}\n\n")
+
+            f.write("# [WHATSAPP INTEGRATION]\n")
+            f.write(f"ENABLE_WHATSAPP_SOURCE={configs.get('ENABLE_WHATSAPP_SOURCE', 'false').strip()}\n")
+            f.write(f"WHATSAPP_SOURCE_CHANNELS={configs.get('WHATSAPP_SOURCE_CHANNELS', '').strip()}\n")
+            f.write(f"WHATSAPP_TARGET_CHANNEL={configs.get('WHATSAPP_TARGET_CHANNEL', '').strip()}\n\n")
+
             f.write("# [DASHBOARD SECURITY]\n")
             f.write(f"DASHBOARD_PASSWORD={configs.get('DASHBOARD_PASSWORD', DASHBOARD_PASSWORD).strip()}\n")
             
@@ -309,6 +322,12 @@ async def get_current_configuration(request: Request):
         "PINTEREST_MIN_SAVING": os.getenv("PINTEREST_MIN_SAVING", "300"),
         "PINTEREST_DAILY_LIMIT": os.getenv("PINTEREST_DAILY_LIMIT", "5"),
         "PINTEREST_DUPLICATE_DAYS": os.getenv("PINTEREST_DUPLICATE_DAYS", "7"),
+        "FACEBOOK_PAGE_TOKEN": os.getenv("FACEBOOK_PAGE_TOKEN", ""),
+        "FACEBOOK_PAGE_ID": os.getenv("FACEBOOK_PAGE_ID", ""),
+        "FACEBOOK_KEYWORDS": os.getenv("FACEBOOK_KEYWORDS", "smartphone, laptop, computer, desktop, headphone, gaming console, electric gadget"),
+        "ENABLE_WHATSAPP_SOURCE": os.getenv("ENABLE_WHATSAPP_SOURCE", "false"),
+        "WHATSAPP_SOURCE_CHANNELS": os.getenv("WHATSAPP_SOURCE_CHANNELS", ""),
+        "WHATSAPP_TARGET_CHANNEL": os.getenv("WHATSAPP_TARGET_CHANNEL", ""),
         "DASHBOARD_PASSWORD": os.getenv("DASHBOARD_PASSWORD", DASHBOARD_PASSWORD)
     }
 
@@ -472,6 +491,32 @@ async def stop_bot_service(request: Request):
     bot_status = "stopped"
     service_logger.info("Deal forwarding daemon stopped via Web Console.")
     return {"status": "stopped", "message": "Bot stopped successfully."}
+
+# =====================================================================
+# WHATSAPP API ENDPOINTS
+# =====================================================================
+@app.get("/api/whatsapp/status")
+async def get_whatsapp_status(request: Request):
+    """Returns the current WhatsApp login status and QR code if available."""
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+        
+    is_logged_in = whatsapp_service_instance.is_logged_in()
+    qr_code = await whatsapp_service_instance.get_qr_code()
+    
+    return {
+        "is_logged_in": is_logged_in,
+        "qr_code": qr_code,
+        "is_running": whatsapp_service_instance.is_running
+    }
+
+@app.post("/api/whatsapp/start")
+async def start_whatsapp(request: Request):
+    """Starts the WhatsApp service manually if not started."""
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
+    await whatsapp_service_instance.start()
+    return {"status": "success", "message": "WhatsApp service started."}
 
 # =====================================================================
 # TELETHON PROGRAMMATIC WEB AUTHENTICATION APIs

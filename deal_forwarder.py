@@ -45,6 +45,7 @@ socket.getaddrinfo = new_getaddrinfo
 import sqlite3
 import shutil
 import base64
+from whatsapp_service import whatsapp_service_instance
 
 # Absolute base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -454,7 +455,13 @@ class DealForwarderService:
                 "ENABLE_TELEGRAM_BOT": os.getenv("ENABLE_TELEGRAM_BOT", "true"),
                 "ENABLE_SOURCE_CHANNELS": os.getenv("ENABLE_SOURCE_CHANNELS", "true"),
                 "ENABLE_WHITELIST_CHANNELS": os.getenv("ENABLE_WHITELIST_CHANNELS", "true"),
-                "ENABLE_DESIDIME_RSS": os.getenv("ENABLE_DESIDIME_RSS", "false")
+                "ENABLE_DESIDIME_RSS": os.getenv("ENABLE_DESIDIME_RSS", "false"),
+                "FACEBOOK_PAGE_TOKEN": os.getenv("FACEBOOK_PAGE_TOKEN", ""),
+                "FACEBOOK_PAGE_ID": os.getenv("FACEBOOK_PAGE_ID", ""),
+                "FACEBOOK_KEYWORDS": os.getenv("FACEBOOK_KEYWORDS", "smartphone, laptop, computer, desktop, headphone, gaming console, electric gadget"),
+                "ENABLE_WHATSAPP_SOURCE": os.getenv("ENABLE_WHATSAPP_SOURCE", "false"),
+                "WHATSAPP_SOURCE_CHANNELS": os.getenv("WHATSAPP_SOURCE_CHANNELS", ""),
+                "WHATSAPP_TARGET_CHANNEL": os.getenv("WHATSAPP_TARGET_CHANNEL", "")
             }
 
         self.config = {
@@ -482,7 +489,13 @@ class DealForwarderService:
             "pinterest_min_discount": int(config_dict.get("PINTEREST_MIN_DISCOUNT") if str(config_dict.get("PINTEREST_MIN_DISCOUNT")).isdigit() else 30),
             "pinterest_min_saving": float(config_dict.get("PINTEREST_MIN_SAVING") if str(config_dict.get("PINTEREST_MIN_SAVING")).replace('.', '', 1).isdigit() else 300.0),
             "pinterest_daily_limit": int(config_dict.get("PINTEREST_DAILY_LIMIT") if str(config_dict.get("PINTEREST_DAILY_LIMIT")).isdigit() else 5),
-            "pinterest_duplicate_days": int(config_dict.get("PINTEREST_DUPLICATE_DAYS") if str(config_dict.get("PINTEREST_DUPLICATE_DAYS")).isdigit() else 7)
+            "pinterest_duplicate_days": int(config_dict.get("PINTEREST_DUPLICATE_DAYS") if str(config_dict.get("PINTEREST_DUPLICATE_DAYS")).isdigit() else 7),
+            "facebook_page_token": config_dict.get("FACEBOOK_PAGE_TOKEN", ""),
+            "facebook_page_id": config_dict.get("FACEBOOK_PAGE_ID", ""),
+            "facebook_keywords": [k.strip().lower() for k in str(config_dict.get("FACEBOOK_KEYWORDS", "")).split(',') if k.strip()],
+            "enable_whatsapp_source": str(config_dict.get("ENABLE_WHATSAPP_SOURCE", "false")).lower() == "true",
+            "whatsapp_source_channels": [c.strip() for c in str(config_dict.get("WHATSAPP_SOURCE_CHANNELS", "")).split(',') if c.strip()],
+            "whatsapp_target_channel": config_dict.get("WHATSAPP_TARGET_CHANNEL", "")
         }
 
         # Parse Channels
@@ -931,6 +944,57 @@ class DealForwarderService:
             return True
         return False
 
+    async def send_to_facebook(self, text: str, affiliate_url: str = None, photo_path: str = None) -> bool:
+        """Posts deal to Facebook Page using Graph API if it matches keyword filters."""
+        page_token = self.config.get("facebook_page_token")
+        page_id = self.config.get("facebook_page_id")
+        
+        if not page_token or not page_id:
+            logger.debug("Facebook Page posting skipped: No token or page ID configured.")
+            return False
+
+        # Apply Keyword Filter
+        keywords = self.config.get("facebook_keywords", [])
+        if keywords:
+            text_lower = text.lower()
+            if not any(kw in text_lower for kw in keywords):
+                logger.info(f"Facebook: Deal skipped due to keyword filter. Required keywords: {keywords}")
+                return False
+
+        formatted_text = text
+        if affiliate_url:
+            formatted_text = f"{text}\n\n🛍️ Buy Now: {affiliate_url}"
+
+        try:
+            if photo_path and os.path.exists(photo_path):
+                url = f"https://graph.facebook.com/v19.0/{page_id}/photos"
+                payload = {
+                    "message": formatted_text,
+                    "access_token": page_token
+                }
+                def _post_photo():
+                    with open(photo_path, "rb") as f:
+                        return requests.post(url, data=payload, files={"source": f}, timeout=20)
+                response = await asyncio.to_thread(_post_photo)
+            else:
+                url = f"https://graph.facebook.com/v19.0/{page_id}/feed"
+                payload = {
+                    "message": formatted_text,
+                    "access_token": page_token
+                }
+                if affiliate_url:
+                    payload["link"] = affiliate_url
+                response = await async_post(url, data=payload, timeout=20)
+                
+            response.raise_for_status()
+            logger.info("Successfully posted to Facebook Page!")
+            return True
+        except Exception as e:
+            logger.error(f"Facebook Graph API Error: {e}")
+            if 'response' in locals() and hasattr(response, 'text'):
+                logger.error(f"Facebook Response Detail: {response.text}")
+            return False
+
     # =====================================================================
     # MESSAGE LISTENER HANDLER
     # =====================================================================
@@ -1118,6 +1182,15 @@ class DealForwarderService:
                     await self.send_to_telegram(deal["escaped_text"], deal["affiliate_url"], deal["photo_path"])
                     # Send to Discord
                     await self.send_to_discord(deal["raw_text"], deal["affiliate_url"], deal["photo_path"])
+                    # Send to Facebook
+                    await self.send_to_facebook(deal["raw_text"], deal["affiliate_url"], deal["photo_path"])
+                    # Send to WhatsApp
+                    if self.config.get("enable_whatsapp_source") and self.config.get("whatsapp_target_channel"):
+                        target_channel = self.config.get("whatsapp_target_channel")
+                        formatted_wa_text = deal["raw_text"]
+                        if deal["affiliate_url"]:
+                            formatted_wa_text += f"\n\n🛒 *Buy Now:* {deal['affiliate_url']}"
+                        await whatsapp_service_instance.post_to_channel(target_channel, formatted_wa_text, deal["photo_path"])
                 except Exception as ex:
                     logger.error(f"Queue Worker: Error sending queued deal: {ex}")
                 finally:
@@ -1286,6 +1359,10 @@ class DealForwarderService:
         self.stats["start_time"] = datetime.datetime.now()
         self.is_running = True
 
+        # Start WhatsApp Service if enabled
+        if self.config.get("enable_whatsapp_source"):
+            asyncio.create_task(whatsapp_service_instance.start())
+
         # Start background queue worker
         if not self.queue_worker_task:
             self.queue_worker_task = asyncio.create_task(self.deal_queue_worker())
@@ -1330,6 +1407,10 @@ class DealForwarderService:
             self.client = None
             
         self.is_running = False
+        
+        # Stop WhatsApp Service
+        await whatsapp_service_instance.stop()
+        
         logger.info("Forwarding Service stopped successfully.")
 
     async def post_approved_deal_to_pinterest(self, deal_id: int, custom_affiliate_url: str = None) -> tuple:
