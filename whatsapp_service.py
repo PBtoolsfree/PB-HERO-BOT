@@ -20,12 +20,20 @@ class WhatsAppService:
     def __init__(self):
         self.playwright = None
         self.browser = None
+        self.context = None
         self.page = None
         self.is_running = False
-        self.qr_code_b64 = None
         self.logged_in = False
+        self.qr_code_b64 = None
+        self.main_task = None
+        self.seen_messages = set() # To prevent duplicate scraping
+        self.on_message_callback = None # Function to route deals to DealForwarderService
         self.deal_queue = asyncio.Queue()
         self._listener_task = None
+        
+    def set_message_handler(self, handler):
+        """Sets the callback function to receive incoming WhatsApp messages."""
+        self.on_message_callback = handler
 
     async def start(self):
         if self.is_running:
@@ -90,7 +98,65 @@ class WhatsAppService:
                         logger.info("Successfully logged into WhatsApp Web!")
                         self.logged_in = True
                         self.qr_code_b64 = None
-                    await asyncio.sleep(2)
+                    
+                    # --- WHATSAPP DOM SCRAPER LOGIC ---
+                    import os
+                    from dotenv import load_dotenv
+                    load_dotenv(override=True)
+                    
+                    # Fetch configured channels
+                    wa_source_str = os.getenv("WHATSAPP_SOURCE_CHANNELS", "")
+                    sources = [s.strip() for s in wa_source_str.split(",") if s.strip()]
+                    
+                    # Add Sandbox "Message yourself"
+                    if "Message yourself" not in sources:
+                        sources.append("Message yourself")
+                        
+                    for target_chat in sources:
+                        try:
+                            # 1. Search for chat
+                            search_box = await self.page.query_selector("div[contenteditable='true'][data-tab='3']")
+                            if not search_box:
+                                continue
+                                
+                            await search_box.fill(target_chat)
+                            await self.page.keyboard.press("Enter")
+                            await asyncio.sleep(2) # Wait for chat to load
+                            
+                            # 2. Extract recent messages
+                            # `.message-in` for incoming, `.message-out` for outgoing (e.g. from "me")
+                            msg_elements = await self.page.query_selector_all(".message-in, .message-out")
+                            if not msg_elements:
+                                continue
+                                
+                            # Check the last 3 messages
+                            for msg_el in msg_elements[-3:]:
+                                # Extract text
+                                text_el = await msg_el.query_selector("span.selectable-text")
+                                if not text_el:
+                                    continue
+                                    
+                                msg_text = await text_el.inner_text()
+                                if not msg_text or len(msg_text) < 5:
+                                    continue
+                                    
+                                # Create a unique fingerprint
+                                msg_hash = hash(msg_text + target_chat)
+                                if msg_hash in self.seen_messages:
+                                    continue
+                                    
+                                self.seen_messages.add(msg_hash)
+                                
+                                # Send to DealForwarderService if callback is set
+                                if self.on_message_callback:
+                                    # Identify if it's the sandbox chat
+                                    is_sandbox = (target_chat == "Message yourself")
+                                    await self.on_message_callback(msg_text, is_sandbox)
+                                    
+                        except Exception as e:
+                            logger.error(f"Error scraping WhatsApp channel {target_chat}: {e}")
+                            
+                    await asyncio.sleep(15) # Polling delay to avoid spamming
                     continue
 
                 # If we reach here, we are not fully logged in yet
