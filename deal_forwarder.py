@@ -1000,7 +1000,7 @@ class DealForwarderService:
     # MESSAGE LISTENER HANDLER
     # =====================================================================
     async def process_test_message(self, event: events.NewMessage.Event):
-        """Processes a message sent in Saved Messages (me) to test affiliate conversion."""
+        """Processes a message sent in Saved Messages (me) to test affiliate conversion AND broadcast it."""
         text = event.message.message
         if not text and not event.message.photo:
             return
@@ -1009,23 +1009,29 @@ class DealForwarderService:
         raw_urls = URL_REGEX.findall(text or "")
         product_urls = [url for url in raw_urls if is_product_url(url)]
         
-        if not product_urls:
-            return
-
-        logger.info(f"Test deal detected in Saved Messages. Extracted product URL count: {len(product_urls)}")
-        original_url = product_urls[0]
-        affiliate_url = self.convert_to_affiliate(original_url)
-        
-        cleaned_text = self.clean_message_text(text, product_urls)
-        escaped_tg_text = escape_html(cleaned_text)
-        
-        # Build test response
-        formatted_text = f"🧪 <b>Bot Sandbox Test Conversion:</b>\n\n{escaped_tg_text}\n\n🛒 <b>Buy Link:</b> <a href=\"{affiliate_url}\">{affiliate_url}</a>"
-        
-        try:
-            await event.reply(formatted_text, parse_mode="HTML", link_preview=False)
-        except Exception as e:
-            logger.error(f"Failed to reply to test message: {e}")
+        if product_urls:
+            logger.info(f"Manual deal detected in Saved Messages. Extracted product URL count: {len(product_urls)}")
+            original_url = product_urls[0]
+            affiliate_url = self.convert_to_affiliate(original_url)
+            
+            cleaned_text = self.clean_message_text(text, product_urls)
+            escaped_tg_text = escape_html(cleaned_text)
+            
+            # Build test response
+            formatted_text = f"✅ <b>Deal Intercepted & Broadcasted!</b>\n\n{escaped_tg_text}\n\n🛒 <b>Buy Link:</b> <a href=\"{affiliate_url}\">{affiliate_url}</a>"
+            
+            try:
+                await event.reply(formatted_text, parse_mode="HTML", link_preview=False)
+            except Exception as e:
+                logger.error(f"Failed to reply to test message: {e}")
+        else:
+            try:
+                await event.reply("✅ <b>Broadcasted!</b> (No product links detected, sending as plain text/image).", parse_mode="HTML")
+            except Exception:
+                pass
+                
+        # Send it to the main processor to actually post it to Telegram, Discord, Facebook, and Pinterest!
+        await self.process_message(event)
 
     async def process_message(self, event: events.NewMessage.Event):
         """Processes a live incoming message, extracts links, and forwards."""
