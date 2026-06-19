@@ -34,14 +34,21 @@ rm -rf ~/.cache/ms-playwright
 echo -e "\n${CYAN}[3/5] Deleting bot installation directory...${NC}"
 sudo rm -rf /opt/telegram-affiliate-forwarder
 
-echo -e "\n${CYAN}[4/5] Cleaning up system packages...${NC}"
-# We run autoremove to clean up any orphaned dependencies safely
-sudo apt-get autoremove -y
+echo -e "\n${CYAN}[4/5] Purging installed Python packages & graphical dependencies...${NC}"
+# Purge the specific python tools and dependencies we installed
+sudo apt-get purge -y python3-pip python3-venv python3-dev
+# Purge common Playwright / Chromium graphical dependencies that were installed
+sudo apt-get purge -y libnss3 libxss1 libasound2 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxi6 libxtst6 libxrandr2 xdg-utils xvfb xserver-common gconf-service libasound2t64 libatk1.0-0 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libxcb1 libxext6 libxfixes3 libxrender1
+
+echo -e "\n${CYAN}[5/5] Cleaning up system packages...${NC}"
+# Run an aggressive autoremove to clean up orphaned dependencies 
+sudo apt-get autoremove --purge -y
 sudo apt-get clean
 
 echo -e "\n${GREEN}=========================================================================${NC}"
-echo -e "${GREEN}✅ UNINSTALLATION COMPLETE!${NC}"
+echo -e "${GREEN}✅ AGGRESSIVE UNINSTALLATION COMPLETE!${NC}"
 echo -e "The PB Hero Bot, systemd service, virtual environments, and Playwright browsers"
-echo -e "have been completely removed from this VPS to free up CPU, RAM, and Disk space."
-echo -e "System Python has been kept intact to prevent breaking your Ubuntu OS."
+echo -e "have been completely removed. Python PIP, VENV, and all the graphical Chromium"
+echo -e "dependencies have been aggressively purged from this VPS."
+echo -e "Your VPS is now reverted as close to a fresh install as safely possible."
 echo -e "${GREEN}=========================================================================${NC}"
