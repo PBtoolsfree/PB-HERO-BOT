@@ -355,13 +355,18 @@ def expand_url(url: str) -> str:
     if not url:
         return url
     try:
-        parsed = urllib.parse.urlparse(url.lower())
-        domain = parsed.netloc or parsed.path
+        req_url = url
+        if not req_url.startswith('http'):
+            req_url = 'https://' + req_url
+            
+        parsed = urllib.parse.urlparse(req_url.lower())
+        domain = parsed.netloc
         
         shortened_domains = [
             "fktr.cc",
             "amzn.to",
             "amzn.in",
+            "amzaff.to",
             "ajiio.in",
             "grbn.in",
             "fkrt.it",
@@ -377,16 +382,16 @@ def expand_url(url: str) -> str:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
-        logger.info(f"Shortened URL detected: {url}. Expanding redirect...")
+        logger.info(f"Shortened URL detected: {req_url}. Expanding redirect...")
         try:
             # We use allow_redirects=True to follow location headers
-            response = requests.head(url, headers=headers, allow_redirects=True, timeout=8)
+            response = requests.head(req_url, headers=headers, allow_redirects=True, timeout=8)
             logger.info(f"Successfully expanded URL: {url} -> {response.url}")
             return response.url
         except Exception as e:
             logger.warning(f"Failed to expand URL via HEAD: {e}. Trying GET...")
             try:
-                response = requests.get(url, headers=headers, allow_redirects=True, timeout=8)
+                response = requests.get(req_url, headers=headers, allow_redirects=True, timeout=8)
                 logger.info(f"Successfully expanded URL via GET: {url} -> {response.url}")
                 return response.url
             except Exception as e2:
@@ -1005,9 +1010,21 @@ class DealForwarderService:
         if not text and not event.message.photo:
             return
 
-        # Find all raw URLs in the text
-        raw_urls = URL_REGEX.findall(text or "")
-        product_urls = [url for url in raw_urls if is_product_url(url)]
+        # Extract URLs using Telegram's message entities (most reliable)
+        url_entities = []
+        if getattr(event.message, 'entities', None):
+            for entity, entity_text in event.message.get_entities_text():
+                entity_type = type(entity).__name__
+                if entity_type == 'MessageEntityTextUrl':
+                    url_entities.append(entity.url)
+                elif entity_type == 'MessageEntityUrl':
+                    url_entities.append(entity_text)
+                        
+        # Fallback to regex if entities are empty
+        if not url_entities:
+            url_entities = URL_REGEX.findall(text or "")
+            
+        product_urls = [url for url in url_entities if is_product_url(url)]
         
         if product_urls:
             logger.info(f"Manual deal detected in Saved Messages. Extracted product URL count: {len(product_urls)}")
@@ -1039,13 +1056,24 @@ class DealForwarderService:
         if not text and not event.message.photo:
             return
 
-        # Find all raw URLs in the text
-        raw_urls = URL_REGEX.findall(text or "")
-        
+        # Extract URLs using Telegram's message entities (most reliable)
+        url_entities = []
+        if getattr(event.message, 'entities', None):
+            for entity, entity_text in event.message.get_entities_text():
+                entity_type = type(entity).__name__
+                if entity_type == 'MessageEntityTextUrl':
+                    url_entities.append(entity.url)
+                elif entity_type == 'MessageEntityUrl':
+                    url_entities.append(entity_text)
+                        
+        # Fallback to regex if entities are empty
+        if not url_entities:
+            url_entities = URL_REGEX.findall(text or "")
+            
         self.stats["processed"] += 1
         
         # Apply the smart product link filter
-        product_urls = [url for url in raw_urls if is_product_url(url)]
+        product_urls = [url for url in url_entities if is_product_url(url)]
         
         # Check if the source is whitelisted (Skip link conversion)
         is_whitelisted = False
