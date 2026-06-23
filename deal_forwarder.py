@@ -673,17 +673,22 @@ class DealForwarderService:
 
         # If no affiliate_url was provided, extract the first one for fallback
         if not affiliate_url:
-            urls = URL_REGEX.findall(text or "")
-            if urls:
-                affiliate_url = urls[0]
+            extracted_urls = URL_REGEX.findall(text or "")
+            if extracted_urls:
+                affiliate_url = extracted_urls[0]
 
+        # Find all URLs to create multiple buttons if needed
+        all_urls = list(dict.fromkeys(URL_REGEX.findall(text or "")))
+        button_urls = all_urls[:5] if all_urls else ([affiliate_url] if affiliate_url else [])
+        
         reply_markup = None
-        if affiliate_url:
-            reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "🛍️ SHOP NOW / यहाँ से खरीदें ➔", "url": affiliate_url}]
-                ]
-            }
+        if button_urls:
+            inline_keyboard = []
+            for i, u in enumerate(button_urls):
+                label = f"🛍️ SHOP NOW {i+1} ➔" if len(button_urls) > 1 else "🛍️ SHOP NOW / यहाँ से खरीदें ➔"
+                full_u = u if u.startswith('http') else 'https://' + u
+                inline_keyboard.append([{"text": label, "url": full_u}])
+            reply_markup = {"inline_keyboard": inline_keyboard}
 
         # Format text to look advanced and clean raw URLs
         cleaned_text = text or ""
@@ -797,21 +802,26 @@ class DealForwarderService:
             ]
         }
         
-        # Add a premium native Link Button to the bottom of the embed card!
-        if affiliate_url:
-            payload["components"] = [
-                {
-                    "type": 1,  # Action Row
-                    "components": [
-                        {
-                            "type": 2,  # Button Component
-                            "style": 5,  # Link Button Style
-                            "label": "🛍️ SHOP NOW / यहाँ से खरीदें ➔",
-                            "url": affiliate_url
-                        }
-                    ]
-                }
-            ]
+        # Add premium native Link Buttons to the bottom of the embed card!
+        all_urls = list(dict.fromkeys(URL_REGEX.findall(cleaned_msg_text)))
+        button_urls = all_urls[:5] if all_urls else ([affiliate_url] if affiliate_url else [])
+        
+        components = []
+        if button_urls:
+            row_components = []
+            for i, u in enumerate(button_urls):
+                label = f"🛍️ SHOP NOW {i+1} ➔" if len(button_urls) > 1 else "🛍️ SHOP NOW / यहाँ से खरीदें ➔"
+                full_u = u if u.startswith('http') else 'https://' + u
+                row_components.append({
+                    "type": 2,
+                    "style": 5,
+                    "label": label,
+                    "url": full_u
+                })
+            components.append({"type": 1, "components": row_components})
+        
+        if components:
+            payload["components"] = components
         
         if photo_path and os.path.exists(photo_path):
             payload["embeds"][0]["image"] = {"url": "attachment://image.jpg"}
@@ -898,21 +908,26 @@ class DealForwarderService:
             ]
         }
         
-        # Add a premium native Link Button to the bottom of the embed card!
-        if affiliate_url:
-            payload["components"] = [
-                {
-                    "type": 1,  # Action Row
-                    "components": [
-                        {
-                            "type": 2,  # Button Component
-                            "style": 5,  # Link Button Style
-                            "label": "🛍️ SHOP NOW / यहाँ से खरीदें ➔",
-                            "url": affiliate_url
-                        }
-                    ]
-                }
-            ]
+        # Add premium native Link Buttons to the bottom of the embed card!
+        all_urls = list(dict.fromkeys(URL_REGEX.findall(cleaned_msg_text)))
+        button_urls = all_urls[:5] if all_urls else ([affiliate_url] if affiliate_url else [])
+        
+        components = []
+        if button_urls:
+            row_components = []
+            for i, u in enumerate(button_urls):
+                label = f"🛍️ SHOP NOW {i+1} ➔" if len(button_urls) > 1 else "🛍️ SHOP NOW / यहाँ से खरीदें ➔"
+                full_u = u if u.startswith('http') else 'https://' + u
+                row_components.append({
+                    "type": 2,
+                    "style": 5,
+                    "label": label,
+                    "url": full_u
+                })
+            components.append({"type": 1, "components": row_components})
+        
+        if components:
+            payload["components"] = components
 
         headers = {
             "Authorization": f"Bot {bot_token.strip()}"
@@ -1120,11 +1135,14 @@ class DealForwarderService:
         if is_whitelisted:
             logger.info(f"Incoming post is from WHITELISTED channel: {event.chat_id}. Forwarding directly without link conversion.")
         elif product_urls:
-            logger.info(f"Incoming deal detected. Extracted product URL count: {len(product_urls)} (out of {len(raw_urls)} total URLs)")
-            original_url = product_urls[0]
-            affiliate_url = self.convert_to_affiliate(original_url)
-            # Only clean out actual product deal URLs from the message body
-            cleaned_text = self.clean_message_text(text, product_urls)
+            logger.info(f"Incoming deal detected. Extracted product URL count: {len(product_urls)}")
+            cleaned_text = text
+            converted_urls = []
+            for orig_url in product_urls:
+                aff_url = self.convert_to_affiliate(orig_url)
+                converted_urls.append(aff_url)
+                cleaned_text = cleaned_text.replace(orig_url, aff_url)
+            affiliate_url = converted_urls[0] if converted_urls else None
         else:
             logger.info("Incoming deal detected without any product links. Forwarding content directly.")
             
