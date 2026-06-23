@@ -671,18 +671,34 @@ class DealForwarderService:
             logger.error("Telegram Send Failed: BOT_TOKEN or MY_TELEGRAM_CHANNEL is missing.")
             return False
 
+        # If no affiliate_url was provided, extract the first one for fallback
+        if not affiliate_url:
+            urls = URL_REGEX.findall(text or "")
+            if urls:
+                affiliate_url = urls[0]
+
         reply_markup = None
         if affiliate_url:
             reply_markup = {
                 "inline_keyboard": [
-                    [{"text": "🛒 Shop Now / खरीदें", "url": affiliate_url}]
+                    [{"text": "🛍️ SHOP NOW / यहाँ से खरीदें ➔", "url": affiliate_url}]
                 ]
             }
 
-        # Append affiliate URL to text/caption to enable automatic webpage link previews and clicks
-        formatted_text = text
-        if affiliate_url:
-            formatted_text = f"{text}\n\n🛒 <b>Buy Link / यहाँ से खरीदें:</b> <a href=\"{affiliate_url}\">{affiliate_url}</a>"
+        # Format text to look advanced and clean raw URLs
+        cleaned_text = text or ""
+        urls = URL_REGEX.findall(cleaned_text)
+        for u in set(urls):
+            full_u = u if u.startswith('http') else 'https://' + u
+            cleaned_text = cleaned_text.replace(u, f'<a href="{full_u}">🔗 View Link</a>')
+            
+        formatted_text = (
+            f"🔥 <b>LIMITED TIME DEAL</b> 🔥\n"
+            f"━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{cleaned_text}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"⚡ <i>Hurry up before the price changes!</i>"
+        )
 
         try:
             if photo_path and os.path.exists(photo_path):
@@ -740,24 +756,20 @@ class DealForwarderService:
         if not webhook_url:
             return False
             
-        # Clean URL out of description block if we render it as a button
-        cleaned_msg_text = text
-        if affiliate_url:
-            cleaned_msg_text = text.replace(affiliate_url, "").strip()
-            cleaned_msg_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_msg_text).strip()
+        # Format the description block with premium markdown styling and clean raw URLs
+        cleaned_msg_text = text or ""
+        urls = URL_REGEX.findall(cleaned_msg_text)
+        for u in set(urls):
+            full_u = u if u.startswith('http') else 'https://' + u
+            cleaned_msg_text = cleaned_msg_text.replace(u, f'[🔗 View Link]({full_u})')
             
-        # Format the description block with premium markdown styling
-        if affiliate_url:
-            description_text = (
-                f"✨ **LIMITED TIME DEAL** ✨\n"
-                f"━━━━━━━━━━━━━━━━━━━\n\n"
-                f"{cleaned_msg_text}\n\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"🚀 **[🛒 SHOP NOW / यहाँ से खरीदें]({affiliate_url})** ➔\n"
-                f"━━━━━━━━━━━━━━━━━━━"
-            )
-        else:
-            description_text = text
+        description_text = (
+            f"🔥 **LIMITED TIME DEAL** 🔥\n"
+            f"━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{cleaned_msg_text}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"⚡ *Hurry up before the price changes!*"
+        )
             
         payload = {
             "embeds": [
@@ -839,24 +851,20 @@ class DealForwarderService:
             logger.error("Discord Bot Send Failed: Bot token or target channel list is empty.")
             return False
 
-        # Clean URL out of description block if we render it as a button
-        cleaned_msg_text = text
-        if affiliate_url:
-            cleaned_msg_text = text.replace(affiliate_url, "").strip()
-            cleaned_msg_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_msg_text).strip()
+        # Format the description block with premium markdown styling and clean raw URLs
+        cleaned_msg_text = text or ""
+        urls = URL_REGEX.findall(cleaned_msg_text)
+        for u in set(urls):
+            full_u = u if u.startswith('http') else 'https://' + u
+            cleaned_msg_text = cleaned_msg_text.replace(u, f'[🔗 View Link]({full_u})')
             
-        # Format the description block with premium markdown styling
-        if affiliate_url:
-            description_text = (
-                f"✨ **LIMITED TIME DEAL** ✨\n"
-                f"━━━━━━━━━━━━━━━━━━━\n\n"
-                f"{cleaned_msg_text}\n\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"🚀 **[🛒 SHOP NOW / यहाँ से खरीदें]({affiliate_url})** ➔\n"
-                f"━━━━━━━━━━━━━━━━━━━"
-            )
-        else:
-            description_text = text
+        description_text = (
+            f"🔥 **LIMITED TIME DEAL** 🔥\n"
+            f"━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{cleaned_msg_text}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"⚡ *Hurry up before the price changes!*"
+        )
             
         payload = {
             "embeds": [
