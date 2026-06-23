@@ -682,31 +682,28 @@ class DealForwarderService:
         button_urls = all_urls[:5] if all_urls else ([affiliate_url] if affiliate_url else [])
         
         reply_markup = None
-        if button_urls:
-            inline_keyboard = []
-            for i, u in enumerate(button_urls):
-                label = f"🛍️ SHOP NOW {i+1} ➔" if len(button_urls) > 1 else "🛍️ SHOP NOW / यहाँ से खरीदें ➔"
-                full_u = u if u.startswith('http') else 'https://' + u
-                inline_keyboard.append([{"text": label, "url": full_u}])
-            reply_markup = {"inline_keyboard": inline_keyboard}
+        # Only add the native bottom button if there is exactly 1 link
+        if len(button_urls) == 1:
+            full_u = button_urls[0] if button_urls[0].startswith('http') else 'https://' + button_urls[0]
+            reply_markup = {
+                "inline_keyboard": [
+                    [{"text": "🛍️ SHOP NOW / यहाँ से खरीदें ➔", "url": full_u}]
+                ]
+            }
 
         # Format text to look advanced and clean raw URLs
         cleaned_text = text or ""
-        urls = URL_REGEX.findall(cleaned_text)
-        for u in set(urls):
+        for u in set(all_urls):
             full_u = u if u.startswith('http') else 'https://' + u
-            cleaned_text = cleaned_text.replace(u, f'<a href="{full_u}">🔗 View Link</a>')
+            cleaned_text = cleaned_text.replace(u, f'<a href="{full_u}"><b>🛍️ SHOP NOW ➔</b></a>')
             
         # Strip dangling colons, dashes or spaces left after URL removal
         cleaned_text = re.sub(r'[\s:\-]+$', '', cleaned_text)
-        
-        # Add explicit buy text hyperlink
-        buy_link_text = f"\n\n🔗 <a href=\"{affiliate_url}\"><b>🛍️ Click Here To Buy</b></a>" if affiliate_url else ""
             
         formatted_text = (
             f"🔥 <b>LIMITED TIME DEAL</b> 🔥\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{cleaned_text}{buy_link_text}\n\n"
+            f"{cleaned_text}\n\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ <i>Hurry up before the price changes!</i>"
         )
@@ -770,20 +767,21 @@ class DealForwarderService:
         # Format the description block with premium markdown styling and clean raw URLs
         cleaned_msg_text = text or ""
         urls = URL_REGEX.findall(cleaned_msg_text)
-        for u in set(urls):
+        # Format the description block with premium markdown styling and clean raw URLs
+        cleaned_msg_text = text or ""
+        all_urls = list(dict.fromkeys(URL_REGEX.findall(cleaned_msg_text)))
+        
+        for u in set(all_urls):
             full_u = u if u.startswith('http') else 'https://' + u
-            cleaned_msg_text = cleaned_msg_text.replace(u, f'[🔗 View Link]({full_u})')
+            cleaned_msg_text = cleaned_msg_text.replace(u, f'**[🛍️ SHOP NOW ➔]({full_u})**')
             
         # Strip dangling colons, dashes or spaces left after URL removal
         cleaned_msg_text = re.sub(r'[\s:\-]+$', '', cleaned_msg_text)
-        
-        # Add explicit buy text hyperlink
-        buy_link_text = f"\n\n🔗 **[🛍️ Click Here To Buy]({affiliate_url})**" if affiliate_url else ""
             
         description_text = (
             f"🔥 **LIMITED TIME DEAL** 🔥\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{cleaned_msg_text}{buy_link_text}\n\n"
+            f"{cleaned_msg_text}\n\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ *Hurry up before the price changes!*"
         )
@@ -803,22 +801,21 @@ class DealForwarderService:
         }
         
         # Add premium native Link Buttons to the bottom of the embed card!
-        all_urls = list(dict.fromkeys(URL_REGEX.findall(cleaned_msg_text)))
         button_urls = all_urls[:5] if all_urls else ([affiliate_url] if affiliate_url else [])
         
         components = []
-        if button_urls:
-            row_components = []
-            for i, u in enumerate(button_urls):
-                label = f"🛍️ SHOP NOW {i+1} ➔" if len(button_urls) > 1 else "🛍️ SHOP NOW / यहाँ से खरीदें ➔"
-                full_u = u if u.startswith('http') else 'https://' + u
-                row_components.append({
+        # Only add native button if there is exactly 1 link
+        if len(button_urls) == 1:
+            full_u = button_urls[0] if button_urls[0].startswith('http') else 'https://' + button_urls[0]
+            components.append({
+                "type": 1, 
+                "components": [{
                     "type": 2,
                     "style": 5,
-                    "label": label,
+                    "label": "🛍️ SHOP NOW / यहाँ से खरीदें ➔",
                     "url": full_u
-                })
-            components.append({"type": 1, "components": row_components})
+                }]
+            })
         
         if components:
             payload["components"] = components
@@ -875,21 +872,19 @@ class DealForwarderService:
 
         # Format the description block with premium markdown styling and clean raw URLs
         cleaned_msg_text = text or ""
-        urls = URL_REGEX.findall(cleaned_msg_text)
-        for u in set(urls):
+        all_urls = list(dict.fromkeys(URL_REGEX.findall(cleaned_msg_text)))
+        
+        for u in set(all_urls):
             full_u = u if u.startswith('http') else 'https://' + u
-            cleaned_msg_text = cleaned_msg_text.replace(u, f'[🔗 View Link]({full_u})')
+            cleaned_msg_text = cleaned_msg_text.replace(u, f'**[🛍️ SHOP NOW ➔]({full_u})**')
             
         # Strip dangling colons, dashes or spaces left after URL removal
         cleaned_msg_text = re.sub(r'[\s:\-]+$', '', cleaned_msg_text)
-        
-        # Add explicit buy text hyperlink
-        buy_link_text = f"\n\n🔗 **[🛍️ Click Here To Buy]({affiliate_url})**" if affiliate_url else ""
             
         description_text = (
             f"🔥 **LIMITED TIME DEAL** 🔥\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{cleaned_msg_text}{buy_link_text}\n\n"
+            f"{cleaned_msg_text}\n\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ *Hurry up before the price changes!*"
         )
@@ -909,22 +904,21 @@ class DealForwarderService:
         }
         
         # Add premium native Link Buttons to the bottom of the embed card!
-        all_urls = list(dict.fromkeys(URL_REGEX.findall(cleaned_msg_text)))
         button_urls = all_urls[:5] if all_urls else ([affiliate_url] if affiliate_url else [])
         
         components = []
-        if button_urls:
-            row_components = []
-            for i, u in enumerate(button_urls):
-                label = f"🛍️ SHOP NOW {i+1} ➔" if len(button_urls) > 1 else "🛍️ SHOP NOW / यहाँ से खरीदें ➔"
-                full_u = u if u.startswith('http') else 'https://' + u
-                row_components.append({
+        # Only add native button if there is exactly 1 link
+        if len(button_urls) == 1:
+            full_u = button_urls[0] if button_urls[0].startswith('http') else 'https://' + button_urls[0]
+            components.append({
+                "type": 1, 
+                "components": [{
                     "type": 2,
                     "style": 5,
-                    "label": label,
+                    "label": "🛍️ SHOP NOW / यहाँ से खरीदें ➔",
                     "url": full_u
-                })
-            components.append({"type": 1, "components": row_components})
+                }]
+            })
         
         if components:
             payload["components"] = components
