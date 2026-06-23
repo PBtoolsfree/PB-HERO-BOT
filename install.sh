@@ -26,7 +26,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # 2. Update package list & install core system dependencies
-echo -e "${YELLOW}[1/7] Installing core system packages (Python, Git, iptables)...${NC}"
+echo -e "${YELLOW}[1/6] Installing core system packages (Python, Git, iptables)...${NC}"
 apt-get update -y
 # Auto-approve iptables-persistent prompts during install
 echo "iptables-persistent iptables-persistent/whitesole select true" | debconf-set-selections
@@ -42,7 +42,7 @@ echo -e "${GREEN}[SUCCESS] Core system dependencies successfully installed.${NC}
 echo
 
 # 3. Setup workspace directory
-echo -e "${YELLOW}[2/7] Setting up project workspace...${NC}"
+echo -e "${YELLOW}[2/6] Setting up project workspace...${NC}"
 WORKSPACE_DIR="/opt/telegram-affiliate-forwarder"
 if [ -d "$WORKSPACE_DIR" ]; then
   echo -e "Project folder already exists at $WORKSPACE_DIR. Syncing codebase..."
@@ -62,7 +62,7 @@ else
 fi
 
 # 4. Setup Python Virtual Environment and packages
-echo -e "${YELLOW}[3/7] Configuring virtual environment and installing pip packages...${NC}"
+echo -e "${YELLOW}[3/6] Configuring virtual environment and installing pip packages...${NC}"
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
@@ -75,8 +75,8 @@ echo -e "${GREEN}[SUCCESS] Virtual environment configured and verified.${NC}"
 echo
 
 
-# 6. Handle environment configuration and secure password generation
-echo -e "${YELLOW}[5/7] Initializing secure environment config (.env)...${NC}"
+# 5. Handle environment configuration and secure password generation
+echo -e "${YELLOW}[4/6] Initializing secure environment config (.env)...${NC}"
 if [ ! -f ".env" ]; then
   if [ -f ".env.example" ]; then
     cp .env.example .env
@@ -99,8 +99,8 @@ else
   echo -e "Security key: Found existing dashboard access password in config."
 fi
 
-# 7. Configure Systemd Daemon Service
-echo -e "${YELLOW}[6/7] Spawning background systemd service daemon...${NC}"
+# 6. Configure Systemd Daemon Service
+echo -e "${YELLOW}[5/6] Spawning background systemd service daemon...${NC}"
 SERVICE_FILE="/etc/systemd/system/pbherobot.service"
 
 cat <<EOT > $SERVICE_FILE
@@ -133,8 +133,8 @@ fi
 echo -e "${GREEN}[SUCCESS] Daemon service successfully enabled and started!${NC}"
 echo
 
-# 8. Automate Linux VPS Firewalls
-echo -e "${YELLOW}[7/7] Opening network ports in system firewall (Port 8000)...${NC}"
+# 7. Automate Linux VPS Firewalls
+echo -e "${YELLOW}[6/6] Opening network ports in system firewall (Port 8000)...${NC}"
 # Allow TCP traffic on 8000 inside iptables at position 1 to bypass OCI default reject rules
 iptables -I INPUT 1 -p tcp --dport 8000 -j ACCEPT
 # Save rules permanently across reboots
