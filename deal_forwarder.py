@@ -692,10 +692,16 @@ class DealForwarderService:
             full_u = u if u.startswith('http') else 'https://' + u
             cleaned_text = cleaned_text.replace(u, f'<a href="{full_u}">🔗 View Link</a>')
             
+        # Strip dangling colons, dashes or spaces left after URL removal
+        cleaned_text = re.sub(r'[\s:\-]+$', '', cleaned_text)
+        
+        # Add explicit buy text hyperlink
+        buy_link_text = f"\n\n🔗 <a href=\"{affiliate_url}\"><b>🛍️ Click Here To Buy</b></a>" if affiliate_url else ""
+            
         formatted_text = (
             f"🔥 <b>LIMITED TIME DEAL</b> 🔥\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{cleaned_text}\n\n"
+            f"{cleaned_text}{buy_link_text}\n\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ <i>Hurry up before the price changes!</i>"
         )
@@ -763,10 +769,16 @@ class DealForwarderService:
             full_u = u if u.startswith('http') else 'https://' + u
             cleaned_msg_text = cleaned_msg_text.replace(u, f'[🔗 View Link]({full_u})')
             
+        # Strip dangling colons, dashes or spaces left after URL removal
+        cleaned_msg_text = re.sub(r'[\s:\-]+$', '', cleaned_msg_text)
+        
+        # Add explicit buy text hyperlink
+        buy_link_text = f"\n\n🔗 **[🛍️ Click Here To Buy]({affiliate_url})**" if affiliate_url else ""
+            
         description_text = (
             f"🔥 **LIMITED TIME DEAL** 🔥\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{cleaned_msg_text}\n\n"
+            f"{cleaned_msg_text}{buy_link_text}\n\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ *Hurry up before the price changes!*"
         )
@@ -858,10 +870,16 @@ class DealForwarderService:
             full_u = u if u.startswith('http') else 'https://' + u
             cleaned_msg_text = cleaned_msg_text.replace(u, f'[🔗 View Link]({full_u})')
             
+        # Strip dangling colons, dashes or spaces left after URL removal
+        cleaned_msg_text = re.sub(r'[\s:\-]+$', '', cleaned_msg_text)
+        
+        # Add explicit buy text hyperlink
+        buy_link_text = f"\n\n🔗 **[🛍️ Click Here To Buy]({affiliate_url})**" if affiliate_url else ""
+            
         description_text = (
             f"🔥 **LIMITED TIME DEAL** 🔥\n"
             f"━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{cleaned_msg_text}\n\n"
+            f"{cleaned_msg_text}{buy_link_text}\n\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ *Hurry up before the price changes!*"
         )
