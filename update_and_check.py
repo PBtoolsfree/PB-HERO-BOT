@@ -114,6 +114,44 @@ def update_python_dependencies() -> bool:
         
     return run_command([venv_python, "-m", "pip", "install", "-r", requirements_path, "--upgrade"], "Updating/verifying pip packages from requirements.txt")
 
+def remove_playwright_and_cache() -> bool:
+    """Removes Playwright binaries and chromium caches to free up space."""
+    print(f"\n{BOLD}{CYAN}🔹 STEP 2.5: Deep Cleaning Legacy Playwright & WhatsApp Assets{NC}")
+    
+    venv_python = None
+    possible_venv_paths = [
+        os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe"),
+        os.path.join(BASE_DIR, ".venv", "bin", "python"),
+        os.path.join(BASE_DIR, "venv", "Scripts", "python.exe"),
+        os.path.join(BASE_DIR, "venv", "bin", "python")
+    ]
+    
+    for path in possible_venv_paths:
+        if os.path.exists(path):
+            venv_python = path
+            break
+            
+    if not venv_python:
+        venv_python = sys.executable
+
+    print(f"{YELLOW}[→] Uninstalling pip package 'playwright' if present...{NC}")
+    subprocess.run([venv_python, "-m", "pip", "uninstall", "-y", "playwright"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    print(f"{YELLOW}[→] Removing downloaded browser binaries...{NC}")
+    cache_paths = [
+        os.path.expanduser("~/.cache/ms-playwright"),
+        os.path.expanduser("~/AppData/Local/ms-playwright"),
+        "/root/.cache/ms-playwright/"
+    ]
+    for path in cache_paths:
+        if os.path.exists(path):
+            try:
+                shutil.rmtree(path, ignore_errors=True)
+            except Exception:
+                pass
+    print(f"{GREEN}[SUCCESS] Legacy Playwright and WhatsApp assets deeply cleaned.{NC}")
+    return True
+
 def check_environmental_configs() -> bool:
     """Validates the local environment configuration variables."""
     print(f"\n{BOLD}{CYAN}🔹 STEP 3: Environmental Config (.env) Integrity Audit{NC}")
@@ -294,6 +332,9 @@ def main():
     
     # Step 2: Update packages
     deps_ok = update_python_dependencies()
+    
+    # Step 2.5: Remove Playwright
+    remove_playwright_and_cache()
     
     # Step 3: Auditing configurations
     env_ok = check_environmental_configs()

@@ -74,12 +74,6 @@ fi
 echo -e "${GREEN}[SUCCESS] Virtual environment configured and verified.${NC}"
 echo
 
-# 5. Install Playwright Browsers and Dependencies
-echo -e "${YELLOW}[4/7] Installing headless browser dependencies (Playwright Chromium)...${NC}"
-python3 -m playwright install chromium
-python3 -m playwright install-deps
-echo -e "${GREEN}[SUCCESS] Headless browser successfully installed.${NC}"
-echo
 
 # 6. Handle environment configuration and secure password generation
 echo -e "${YELLOW}[5/7] Initializing secure environment config (.env)...${NC}"

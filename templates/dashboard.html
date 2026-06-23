@@ -704,7 +704,6 @@
                 <button type="button" class="tab-btn" onclick="switchTab('tab-discord')">Discord Integration</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-pinterest')">Pinterest Integration</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-facebook')">Facebook Page</button>
-                <button type="button" class="tab-btn" onclick="switchTab('tab-whatsapp')">WhatsApp Setup</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-affiliate-api')">Affiliate API</button>
                 <button type="button" class="tab-btn" onclick="switchTab('tab-security')">Console Security</button>
             </div>
@@ -929,39 +928,7 @@
                     </div>
                 </div>
 
-                <!-- Tab: WhatsApp Setup -->
-                <div id="tab-whatsapp" class="tab-pane">
-                    <div class="form-group" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border-color);">
-                        <label for="ENABLE_WHATSAPP_SOURCE">Enable WhatsApp Scraping</label>
-                        <select id="ENABLE_WHATSAPP_SOURCE" style="width: 100%; background: rgba(6, 9, 19, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 16px; color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 14px;">
-                            <option value="true">Enabled (Listen & Post via Playwright)</option>
-                            <option value="false">Disabled</option>
-                        </select>
-                        <div class="form-note">Toggle WhatsApp Playwright scraping functionality. Needs QR scan below.</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="WHATSAPP_SOURCE_CHANNELS">WhatsApp Source Channels (Comma-separated)</label>
-                        <textarea id="WHATSAPP_SOURCE_CHANNELS" rows="4" placeholder="Amazon Deals 1, Flipkart Deals 2"></textarea>
-                        <div class="form-note">Exact names of the WhatsApp Channels/Groups to listen to.</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="WHATSAPP_TARGET_CHANNEL">WhatsApp Target Destination</label>
-                        <input type="text" id="WHATSAPP_TARGET_CHANNEL" placeholder="My Affiliate Group">
-                        <div class="form-note">The exact name of the destination channel/group where converted deals will be posted.</div>
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
-                        <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--primary-accent);">WhatsApp Login Status</h3>
-                        <div id="wa-status-badge" class="pinterest-badge error-badge" style="display:inline-block; margin-bottom:12px;">Checking...</div>
-                        <br>
-                        <button id="btn-wa-toggle" type="button" class="btn btn-primary" style="padding: 8px 16px; font-size: 12px;" onclick="toggleWhatsApp('start')">Start WhatsApp Service</button>
-                        
-                        <div id="wa-qr-container" style="margin-top: 16px; display: none;">
-                            <label style="font-size: 12px; color: var(--text-muted);">Scan QR Code to Login:</label>
-                            <img id="wa-qr-image" src="" alt="WhatsApp QR Code" style="margin-top: 8px; border: 1px solid var(--border-color); border-radius: 8px; width: 200px; height: 200px; object-fit: contain; background: white;">
-                        </div>
-                    </div>
-                </div>
+
 
                 <!-- Tab: Security & Logout settings -->
                 <div id="tab-security" class="tab-pane">
@@ -1185,7 +1152,7 @@
             document.getElementById(tabId).classList.add('active');
             
             // Make button active
-            const btnIndex = ['tab-tg-api', 'tab-tg-bot', 'tab-targets', 'tab-discord', 'tab-pinterest', 'tab-facebook', 'tab-whatsapp', 'tab-affiliate-api', 'tab-security'].indexOf(tabId);
+            const btnIndex = ['tab-tg-api', 'tab-tg-bot', 'tab-targets', 'tab-discord', 'tab-pinterest', 'tab-facebook', 'tab-affiliate-api', 'tab-security'].indexOf(tabId);
             if (btnIndex !== -1) {
                 document.querySelectorAll('.tab-btn')[btnIndex].classList.add('active');
             }
@@ -1283,8 +1250,7 @@
                 'PINTEREST_ENABLED', 'PINTEREST_ACCESS_TOKEN', 'PINTEREST_BOARD_ID',
                 'PINTEREST_MIN_DISCOUNT', 'PINTEREST_MIN_SAVING', 'PINTEREST_DAILY_LIMIT',
                 'PINTEREST_DUPLICATE_DAYS',
-                'FACEBOOK_PAGE_TOKEN', 'FACEBOOK_PAGE_ID', 'FACEBOOK_KEYWORDS',
-                'ENABLE_WHATSAPP_SOURCE', 'WHATSAPP_SOURCE_CHANNELS', 'WHATSAPP_TARGET_CHANNEL'
+                'FACEBOOK_PAGE_TOKEN', 'FACEBOOK_PAGE_ID', 'FACEBOOK_KEYWORDS'
             ];
             const payload = {};
             keys.forEach(k => {
@@ -1440,79 +1406,7 @@
                         qSection.style.display = 'none';
                     }
                     
-                    // Poll WhatsApp Status
-                    if (state === 'running' && document.getElementById('ENABLE_WHATSAPP_SOURCE').value === 'true') {
-                        pollWhatsAppStatus();
-                    }
-                }
-            } catch (err) {
-                console.error("Status fetch failure", err);
-            }
-        }
-        
-        async function pollWhatsAppStatus() {
-            try {
-                const response = await fetch('/api/whatsapp/status');
-                if (response.ok) {
-                    const data = await response.json();
-                    const badge = document.getElementById('wa-status-badge');
-                    const qrContainer = document.getElementById('wa-qr-container');
-                    const qrImage = document.getElementById('wa-qr-image');
-                    
-                    if (data.is_logged_in) {
-                        badge.className = 'pinterest-badge discount';
-                        badge.innerText = 'Linked / Active';
-                        qrContainer.style.display = 'none';
-                    } else if (!data.is_running) {
-                        badge.className = 'pinterest-badge error-badge';
-                        badge.innerText = 'Disconnected / Stopped';
-                        qrContainer.style.display = 'none';
-                    } else if (data.qr_code) {
-                        badge.className = 'pinterest-badge error-badge';
-                        badge.style.color = 'var(--warning-color)';
-                        badge.innerText = 'Awaiting QR Scan...';
-                        qrContainer.style.display = 'block';
-                        qrImage.src = `data:image/png;base64,${data.qr_code}`;
-                    } else {
-                        badge.className = 'pinterest-badge error-badge';
-                        badge.style.color = 'var(--warning-color)';
-                        badge.innerText = 'Initializing WhatsApp...';
-                        qrContainer.style.display = 'none';
-                    }
-                    
-                    // Update Button State
-                    const waBtn = document.getElementById('btn-wa-toggle');
-                    if (waBtn) {
-                        if (data.is_running) {
-                            waBtn.innerText = 'Stop WhatsApp Service';
-                            waBtn.className = 'btn btn-danger';
-                            waBtn.setAttribute('onclick', "toggleWhatsApp('stop')");
-                        } else {
-                            waBtn.innerText = 'Start WhatsApp Service';
-                            waBtn.className = 'btn btn-primary';
-                            waBtn.setAttribute('onclick', "toggleWhatsApp('start')");
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error("WhatsApp status poll error", err);
-            }
-        }
-        
-        async function toggleWhatsApp(action) {
-            try {
-                const response = await fetch(`/api/whatsapp/${action}`, { method: 'POST' });
-                const resData = await response.json();
-                if (response.ok) {
-                    showToast(`WhatsApp Service ${action === 'start' ? 'Started' : 'Stopped'}`);
-                    pollWhatsAppStatus();
-                } else {
-                    showToast(`Failed to ${action} WhatsApp service: ` + (resData.detail || "Unknown Error"), true);
-                }
-            } catch (err) {
-                showToast("Request failed: " + err, true);
-            }
-        }
+
 
         // Start/Stop Bot triggers
         async function toggleBot(action) {

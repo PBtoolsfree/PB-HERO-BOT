@@ -45,7 +45,7 @@ socket.getaddrinfo = new_getaddrinfo
 import sqlite3
 import shutil
 import base64
-from whatsapp_service import whatsapp_service_instance
+
 
 # Absolute base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -464,10 +464,7 @@ class DealForwarderService:
                 "ENABLE_DESIDIME_RSS": os.getenv("ENABLE_DESIDIME_RSS", "false"),
                 "FACEBOOK_PAGE_TOKEN": os.getenv("FACEBOOK_PAGE_TOKEN", ""),
                 "FACEBOOK_PAGE_ID": os.getenv("FACEBOOK_PAGE_ID", ""),
-                "FACEBOOK_KEYWORDS": os.getenv("FACEBOOK_KEYWORDS", "smartphone, laptop, computer, desktop, headphone, gaming console, electric gadget"),
-                "ENABLE_WHATSAPP_SOURCE": os.getenv("ENABLE_WHATSAPP_SOURCE", "false"),
-                "WHATSAPP_SOURCE_CHANNELS": os.getenv("WHATSAPP_SOURCE_CHANNELS", ""),
-                "WHATSAPP_TARGET_CHANNEL": os.getenv("WHATSAPP_TARGET_CHANNEL", "")
+                "FACEBOOK_KEYWORDS": os.getenv("FACEBOOK_KEYWORDS", "smartphone, laptop, computer, desktop, headphone, gaming console, electric gadget")
             }
 
         self.config = {
@@ -498,10 +495,7 @@ class DealForwarderService:
             "pinterest_duplicate_days": int(config_dict.get("PINTEREST_DUPLICATE_DAYS") if str(config_dict.get("PINTEREST_DUPLICATE_DAYS")).isdigit() else 7),
             "facebook_page_token": config_dict.get("FACEBOOK_PAGE_TOKEN", ""),
             "facebook_page_id": config_dict.get("FACEBOOK_PAGE_ID", ""),
-            "facebook_keywords": [k.strip().lower() for k in str(config_dict.get("FACEBOOK_KEYWORDS", "")).split(',') if k.strip()],
-            "enable_whatsapp_source": str(config_dict.get("ENABLE_WHATSAPP_SOURCE", "false")).lower() == "true",
-            "whatsapp_source_channels": [c.strip() for c in str(config_dict.get("WHATSAPP_SOURCE_CHANNELS", "")).split(',') if c.strip()],
-            "whatsapp_target_channel": config_dict.get("WHATSAPP_TARGET_CHANNEL", "")
+            "facebook_keywords": [k.strip().lower() for k in str(config_dict.get("FACEBOOK_KEYWORDS", "")).split(',') if k.strip()]
         }
 
         # Parse Channels
@@ -1050,50 +1044,7 @@ class DealForwarderService:
         # Send it to the main processor to actually post it to Telegram, Discord, Facebook, and Pinterest!
         await self.process_message(event)
 
-    async def handle_whatsapp_message(self, text: str, is_sandbox: bool):
-        """Processes a scraped message from WhatsApp Web."""
-        if not text:
-            return
-            
-        logger.info(f"Received WhatsApp Scraped Message. Is Sandbox: {is_sandbox}")
-        
-        url_entities = URL_REGEX.findall(text)
-        product_urls = [url for url in url_entities if is_product_url(url)]
-        
-        if is_sandbox:
-            if product_urls:
-                original_url = product_urls[0]
-                affiliate_url = self.convert_to_affiliate(original_url)
-                cleaned_text = self.clean_message_text(text, product_urls)
-                
-                try:
-                    reply_text = f"✅ *Deal Intercepted & Broadcasted!*\n\n{cleaned_text}\n\n🛒 *Buy Link:* {affiliate_url}"
-                    # Use a background task to avoid blocking the pipeline
-                    asyncio.create_task(whatsapp_service_instance.post_to_channel("Message yourself", reply_text))
-                except Exception as e:
-                    logger.error(f"Failed to reply to WhatsApp sandbox: {e}")
-            else:
-                try:
-                    asyncio.create_task(whatsapp_service_instance.post_to_channel("Message yourself", "✅ *Broadcasted!* (No product links detected)."))
-                except Exception:
-                    pass
 
-        # Feed into standard processor using a Mock Event
-        class MockMessage:
-            def __init__(self, t):
-                self.message = t
-                self.photo = None
-                self.entities = None
-            def get_entities_text(self):
-                return []
-                
-        class MockEvent:
-            def __init__(self, t):
-                self.message = MockMessage(t)
-                self.chat_id = "whatsapp_source"
-                self.chat = None
-                
-        await self.process_message(MockEvent(text))
 
 
     async def process_message(self, event: events.NewMessage.Event):
@@ -1293,13 +1244,7 @@ class DealForwarderService:
                     await self.send_to_discord(deal["raw_text"], deal["affiliate_url"], deal["photo_path"])
                     # Send to Facebook
                     await self.send_to_facebook(deal["raw_text"], deal["affiliate_url"], deal["photo_path"])
-                    # Send to WhatsApp
-                    if self.config.get("enable_whatsapp_source") and self.config.get("whatsapp_target_channel"):
-                        target_channel = self.config.get("whatsapp_target_channel")
-                        formatted_wa_text = deal["raw_text"]
-                        if deal["affiliate_url"]:
-                            formatted_wa_text += f"\n\n🛒 *Buy Now:* {deal['affiliate_url']}"
-                        await whatsapp_service_instance.post_to_channel(target_channel, formatted_wa_text, deal["photo_path"])
+
                 except Exception as ex:
                     logger.error(f"Queue Worker: Error sending queued deal: {ex}")
                 finally:
@@ -1476,10 +1421,7 @@ class DealForwarderService:
         self.stats["start_time"] = datetime.datetime.now()
         self.is_running = True
 
-        # Start WhatsApp Service if enabled
-        if self.config.get("enable_whatsapp_source"):
-            whatsapp_service_instance.set_message_handler(self.handle_whatsapp_message)
-            asyncio.create_task(whatsapp_service_instance.start())
+
 
         # Start background queue worker
         if not self.queue_worker_task:
@@ -1534,8 +1476,7 @@ class DealForwarderService:
             
         self.is_running = False
         
-        # Stop WhatsApp Service
-        await whatsapp_service_instance.stop()
+
         
         logger.info("Forwarding Service stopped successfully.")
 

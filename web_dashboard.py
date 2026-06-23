@@ -44,8 +44,7 @@ app = FastAPI(title="PB Hero Bot Control System")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DashboardServer")
 
-# Import WhatsApp Service
-from whatsapp_service import whatsapp_service_instance
+
 
 # Compute absolute base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -325,9 +324,6 @@ async def get_current_configuration(request: Request):
         "FACEBOOK_PAGE_TOKEN": os.getenv("FACEBOOK_PAGE_TOKEN", ""),
         "FACEBOOK_PAGE_ID": os.getenv("FACEBOOK_PAGE_ID", ""),
         "FACEBOOK_KEYWORDS": os.getenv("FACEBOOK_KEYWORDS", "smartphone, laptop, computer, desktop, headphone, gaming console, electric gadget"),
-        "ENABLE_WHATSAPP_SOURCE": os.getenv("ENABLE_WHATSAPP_SOURCE", "false"),
-        "WHATSAPP_SOURCE_CHANNELS": os.getenv("WHATSAPP_SOURCE_CHANNELS", ""),
-        "WHATSAPP_TARGET_CHANNEL": os.getenv("WHATSAPP_TARGET_CHANNEL", ""),
         "DASHBOARD_PASSWORD": os.getenv("DASHBOARD_PASSWORD", DASHBOARD_PASSWORD)
     }
 
@@ -492,47 +488,7 @@ async def stop_bot_service(request: Request):
     service_logger.info("Deal forwarding daemon stopped via Web Console.")
     return {"status": "stopped", "message": "Bot stopped successfully."}
 
-# =====================================================================
-# WHATSAPP API ENDPOINTS
-# =====================================================================
-@app.get("/api/whatsapp/status")
-async def get_whatsapp_status(request: Request):
-    """Returns the current WhatsApp login status and QR code if available."""
-    if not is_authenticated(request):
-        raise HTTPException(status_code=401, detail="Unauthorized access.")
-        
-    is_logged_in = whatsapp_service_instance.is_logged_in()
-    qr_code = await whatsapp_service_instance.get_qr_code()
-    
-    return {
-        "is_logged_in": is_logged_in,
-        "qr_code": qr_code,
-        "is_running": whatsapp_service_instance.is_running
-    }
 
-@app.post("/api/whatsapp/start")
-async def start_whatsapp(request: Request):
-    """Starts the WhatsApp service manually if not started."""
-    if not is_authenticated(request):
-        raise HTTPException(status_code=401, detail="Unauthorized access.")
-    try:
-        await whatsapp_service_instance.start()
-        return {"status": "success", "message": "WhatsApp service started."}
-    except Exception as e:
-        logger.error(f"WhatsApp start error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/whatsapp/stop")
-async def stop_whatsapp(request: Request):
-    """Stops the WhatsApp service manually."""
-    if not is_authenticated(request):
-        raise HTTPException(status_code=401, detail="Unauthorized access.")
-    try:
-        await whatsapp_service_instance.stop()
-        return {"status": "success", "message": "WhatsApp service stopped."}
-    except Exception as e:
-        logger.error(f"WhatsApp stop error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 # =====================================================================
 # TELETHON PROGRAMMATIC WEB AUTHENTICATION APIs
