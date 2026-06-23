@@ -1405,9 +1405,12 @@
                     } else {
                         qSection.style.display = 'none';
                     }
-                    
-
-
+                }
+            } catch (err) {
+                console.error("Status fetch failure", err);
+            }
+        }
+        
         // Start/Stop Bot triggers
         async function toggleBot(action) {
             try {

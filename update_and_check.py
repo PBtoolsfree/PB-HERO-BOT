@@ -137,6 +137,11 @@ def remove_playwright_and_cache() -> bool:
     print(f"{YELLOW}[→] Uninstalling pip package 'playwright' if present...{NC}")
     subprocess.run([venv_python, "-m", "pip", "uninstall", "-y", "playwright"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
+    print(f"{YELLOW}[→] Killing any lingering background chromium/chrome processes...{NC}")
+    subprocess.run(["pkill", "-f", "chromium"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["pkill", "-f", "chrome"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["pkill", "-f", "playwright"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
     print(f"{YELLOW}[→] Removing downloaded browser binaries...{NC}")
     cache_paths = [
         os.path.expanduser("~/.cache/ms-playwright"),
